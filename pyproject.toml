@@ -18,5 +18,8 @@ readme = "README.md"
 authors = [{name = "Karen Nowogrodzki", email = "nowo.karen@gmail.com"}]
 # license = {text = "MIT"} 
 
+[project.scripts]
+ulens_lsst = "ulens_lsst.run_pipeline:main"
+
 [tool.setuptools]
 packages = ["ulens_lsst"]
