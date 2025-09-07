@@ -5,7 +5,15 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'ulens_lsst', 'ulens_lsst')))
 sys.path.insert(0, '/opt/lsst/software/stack/conda/envs/lsst-scipipe-10.0.0/lib/python3.12/site-packages')
-autodoc_mock_imports = ['lsst.afw', 'lsst.afw.detection', 'lsst.afw.detection.ImagePsf', 'lsst.afw.detection.Psf', 'lsst.daf.butler', 'lsst.daf', 'lsst.geom', 'lsst.utils']
+# autodoc_mock_imports = ['lsst.afw', 'lsst.afw.detection', 'lsst.afw.detection.ImagePsf', 'lsst.afw.detection.Psf', 'lsst.daf.butler', 'lsst.daf', 'lsst.geom', 'lsst.utils']
+autodoc_mock_imports = [
+    'lsst',  # Covers lsst.afw, lsst.geom, etc.
+    'rubin_sim',  # For rubin_sim imports
+    'rubin_sim.maf',
+    'photutils',  # Your custom bandpass module
+]
+autodoc_typehints = "none"  # Avoid C++ type issues
+suppress_warnings = ['autodoc.import_object']  # Suppress import warnings
 
 project = 'Microlensing LSST Light curve Simulator'
 copyright = '2025, Karen Nowogrodzki'

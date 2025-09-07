@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ulens_lsst"
+version = "1.0.0"
+dependencies = [
+    "numpy>=1.23.0",
+    "pandas>=1.5.0",
+    "pyarrow>=7.0.0",
+    "astropy>=5.0.0",
+    "matplotlib>=3.5.0", 
+    "tqdm>=4.0.0",        
+]
+description = "LSST pipeline for microlensing simulations"
+readme = "README.md"
+authors = [{name = "Karen Nowogrodzki", email = "nowo.karen@gmail.com"}]
+# license = {text = "MIT"} 
+
+[tool.setuptools]
+packages = ["ulens_lsst"]
