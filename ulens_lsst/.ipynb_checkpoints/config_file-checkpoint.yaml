@@ -1,0 +1,252 @@
+# Configuration file for the LSST simulation pipeline
+#
+# This file configures the SimPipeline class for generating and processing microlensing
+# and non-microlensing events. It defines simulation parameters, data sources, processing
+# methods, and output schemas. All parameters are designed to be flexible and optimized
+# for memory and time efficiency, supporting experiments like light curve recoverability
+# and blending effect studies.
+
+# General simulation settings
+main_path: "runs/"
+# Base directory for output files
+name: "new_test"
+# Name of the simulation run (used as folder name)
+n_events: 20
+# Number of events to simulate
+bands: ["u", "g", "r", "i", "z", "y"]
+# LSST filter bands for simulation
+model: "USBL"
+# Microlensing model: "Pacz", "USBL", "FSPL", "PSPL"
+system_type: "Planets_systems"
+# System type: "Planets_systems", "Binary_stars", "BH", "FFP"
+
+# Sky region configuration
+sky_distribution: "circle"
+# Sky distribution method: "circle"
+sky_center:
+  coord: [62, -36]
+  # Center coordinates (RA, Dec in degrees for icrs; l, b for galactic)
+  frame: "icrs"
+  # Coordinate frame: "icrs", "galactic"
+sky_radius: 0.05
+# Radius of the injection region (degrees)
+blend_distance: 0.001
+# Separation distance for nearby source queries (degrees)
+
+# Simulation type and data source
+sim_type: "lsst_images"
+# Simulation type: "lsst_images", "rubin_sim", "ideal"
+lsst_images:
+  data_preview: "dp0"
+  # Data preview: "dp0", "dp1"
+  max_load_calexps: null
+  # Maximum number of calexps to load (null for all)
+opsim:
+  version: "baseline"
+  # OpSim version for cadence simulation
+  noise: false
+  # Apply LSST noise to light curves
+sources_catalog: "AstroDataLab"
+# Source catalog: "TRILEGAL", "AstroDataLab", or path to CSV
+
+# Survey and event timing
+survey:
+  start: 60849
+  # Survey start time (MJD)
+  duration: 10
+  # Survey duration (years)
+peak_range: [61579, 63769.25]
+# MJD range for event peak times (t0)
+
+# Processing settings
+event_processor: "ulens"
+# Event processor: "cte", "ulens", "snana_ulens"
+photometry_processor: "synthetic"
+# Photometry method: "forced", "dia", "synthetic"
+chi2_statistic: "median"
+# Chi-squared statistic: "mean", "median", "constant"
+pylima_blend: false
+# Include blending in microlensing simulation
+
+# LSST-specific parameters
+lsst:
+  mag_sat:
+    u: 14.7
+    g: 15.7
+    r: 15.8
+    i: 15.8
+    z: 15.3
+    y: 13.9
+  # Saturation magnitudes per band
+  mag_5sigma:
+    single_exp:
+      u: 23.9
+      g: 25.0
+      r: 24.7
+      i: 24.0
+      z: 23.3
+      y: 22.1
+    coadd:
+      u: 26.1
+      g: 27.4
+      r: 27.5
+      i: 26.8
+      z: 26.1
+      y: 24.9
+  # 5-sigma depth magnitudes for single exposures and coadds
+  zp:
+    u: 27.03
+    g: 28.38
+    r: 28.16
+    i: 27.85
+    z: 27.46
+    y: 26.68
+  # Zero points for LSST bands
+  color_filter:
+    u: "b"
+    g: "c"
+    r: "g"
+    i: "orange"
+    z: "r"
+    y: "m"
+  # Plotting colors for each band
+
+# Roman-specific parameters
+roman:
+  t_start: 2461508.763828608
+  # Start time for Roman observations (JD)
+  zp:
+    W149: 27.615
+  # Zero point for Roman W149 band
+
+# Output format configuration
+format_output: "snana"
+# Output format: "none", "snana", "microlia"
+format_output_params:
+  min_bands: 6
+  # Minimum number of bands for output
+  chunk_size: 500
+  # Chunk size for parallel processing
+  n_processes: 8
+  # Number of processes for parallel processing
+  max_events: null
+  # Maximum number of events to process (null for all)
+  memory_limit_mb: 4000
+  # Memory limit for processing (MB)
+
+# Logging configuration
+logging:
+  log_name: "pipeline"
+  # Logger name
+  log_to_console: false
+  # Log to console if true
+  log_level: "DEBUG"
+  # Log level: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+
+# Data schemas
+photometry_schema:
+  event_id: int32
+  time: float64
+  band: string
+  ideal_mag: float32
+  meas_mag: float32
+  meas_mag_err: float32
+  meas_flux: float32
+  meas_flux_err: float32
+  magnification: float32
+  injection_flag: string
+  measure_flag: string
+# Schema for photometry Parquet files
+events_schema:
+  event_id: int32
+  ra: float32
+  dec: float32
+  model: string
+  system_type: string
+  points: int32
+  logL: float32
+  logTe: float32
+  D_L: float32
+  D_S: float32
+  mu_rel: float32
+  nearby_object_ra: float32
+  nearby_object_dec: float32
+  nearby_object_objId: float64
+  nearby_object_distance: float32
+  cadence_noise: string
+  peak_time: float32
+  nearby_object_mag_u: float32
+  nearby_object_mag_g: float32
+  nearby_object_mag_r: float32
+  nearby_object_mag_i: float32
+  nearby_object_mag_z: float32
+  nearby_object_mag_y: float32
+  nearby_object_fwhm_u: float32
+  nearby_object_fwhm_g: float32
+  nearby_object_fwhm_r: float32
+  nearby_object_fwhm_i: float32
+  nearby_object_fwhm_z: float32
+  nearby_object_fwhm_y: float32
+  param_u: float32
+  param_g: float32
+  param_r: float32
+  param_i: float32
+  param_z: float32
+  param_y: float32
+  param_t0: float32
+  param_tE: float32
+  param_u0: float32
+  param_radius: float32
+  param_q: float32
+  param_rho: float32
+  param_s: float32
+  param_alpha: float32
+  param_piEE: float32
+  param_piEN: float32
+  param_f_blend: float32
+# Schema for events Parquet files
+pylima_schema:
+  param-pylima_t_center: float32
+  param-pylima_u_center: float32
+  param-pylima_tE: float32
+  param-pylima_rho: float32
+  param-pylima_separation: float32
+  param-pylima_mass_ratio: float32
+  param-pylima_alpha: float32
+  param-pylima_piEN: float32
+  param-pylima_piEE: float32
+  param-pylima_fsource_u: float32
+  param-pylima_ftotal_u: float32
+  param-pylima_fblend_u: float32
+  param-pylima_gblend_u: float32
+  param-pylima_fsource_g: float32
+  param-pylima_ftotal_g: float32
+  param-pylima_fblend_g: float32
+  param-pylima_gblend_g: float32
+  param-pylima_fsource_r: float32
+  param-pylima_ftotal_r: float32
+  param-pylima_fblend_r: float32
+  param-pylima_gblend_r: float32
+  param-pylima_fsource_i: float32
+  param-pylima_ftotal_i: float32
+  param-pylima_fblend_i: float32
+  param-pylima_gblend_i: float32
+  param-pylima_fsource_z: float32
+  param-pylima_ftotal_z: float32
+  param-pylima_fblend_z: float32
+  param-pylima_gblend_z: float32
+  param-pylima_fsource_y: float32
+  param-pylima_ftotal_y: float32
+  param-pylima_fblend_y: float32
+  param-pylima_gblend_y: float32
+  param-pylima_t0: float32
+  param-pylima_u0: float32
+# Schema for pyLIMA-specific parameters
+
+
+max_len_lc: 4000
+# Maximum length of light curves
+max_temp_files: 10000
+# Maximum number of temporary files
+f: 0.0001
+# Fractional deviation threshold for SNANA filters
