@@ -11,7 +11,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Karen Nowogrodzki',
     author_email='nowo.karen@gmail.com',
-    url='https://github.com/CosmoObs/microlensing/simulation_Rubin/dp0_rubin/ulens_lsst',
+    url='https://github.com/nowokaren/ulens_lsst',
     packages=find_packages(),
     install_requires=[
         'numpy>=1.23.0',
