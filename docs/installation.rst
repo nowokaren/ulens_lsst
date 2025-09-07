@@ -18,7 +18,7 @@ For development, clone the repository and install locally:
 
 .. code-block:: bash
 
-   git clone https://github.com/CosmoObs/microlensing/simulation_Rubin/dp0_rubin/ulens_lsst.git
+   git clone https://github.com/nowokaren/ulens_lsst.git
    cd ulens_lsst
    pip install -e .
 

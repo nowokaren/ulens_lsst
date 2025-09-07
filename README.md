@@ -14,7 +14,7 @@ pip install ulens_lsst
 
 For development:
 
-git clone https://github.com/yourusername/ulens_lsst.git
+git clone https://github.com/nowokaren/ulens_lsst.git
 cd ulens_lsst
 pip install -e .
 
