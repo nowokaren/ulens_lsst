@@ -1,7 +1,16 @@
+.. _installation:
+
 Prerequisites
 -------------
 
 The `ulens_lsst` package requires the LSST stack (e.g., lsst-scipipe-10.0.0) for modules like `lsst_data` and `lsst_tools`. Follow the official LSST installation guide: `LSST Stack Installation <https://pipelines.lsst.io/install/lsstinstall.html>`_.
+If you are working on `https://data.lsst.cloud/`:
+
+.. code-block:: bash
+
+   source /opt/lsst/software/stack/loadLSST.bash
+   setup lsst_distrib
+
 
 External datasets (e.g., `chunks_TRILEGAL_Genulens`) are required for certain configurations. Download and place them in `ulens_lsst/data/chunks_TRILEGAL_Genulens/`. See :ref:`data` for setup instructions.
 
@@ -18,7 +27,7 @@ For development, clone the repository and install locally:
 
 .. code-block:: bash
 
-   git clone https://github.com/CosmoObs/microlensing/simulation_Rubin/dp0_rubin/ulens_lsst.git
+   git clone https://github.com/nowokaren/ulens_lsst.git
    cd ulens_lsst
    pip install -e .
 
@@ -30,7 +39,7 @@ Configuration
 
    .. code-block:: bash
 
-      cp ulens_lsst/config/config_example.yaml config.yaml
+      cp ulens_lsst/config_file.yaml config.yaml
 
 2. Update `config.yaml` with paths to your datasets (e.g., `TRILEGAL_Genulens_path`).
 

@@ -183,19 +183,29 @@ class Catalog:
     ) -> None:
         """
         Combine temporary Parquet files into a single final Parquet file, handling column order differences.
-
-        Args:
-            temp_dir (str): Directory containing temporary Parquet files.
-            schema (Optional[Union[List[Tuple[str, pa.DataType]], Dict[str, pa.DataType]]]): Schema for the output file.
-                Required if final_path doesn't exist or is invalid.
-            batch_size (int): Number of rows to process at a time (default: 1000).
-            columns (Optional[List[str]]): Columns to read from temporary files (default: None, read all).
-            cleanup (bool): Delete temporary files after combining (default: True).
-
+    
+        Parameters
+        ----------
+        temp_dir : str
+            Directory containing temporary Parquet files.
+        schema : Optional[Union[List[Tuple[str, pa.DataType]], Dict[str, pa.DataType]]]
+            Schema for the output file. Required if final_path doesn't exist or is invalid.
+        batch_size : int, optional
+            Number of rows to process at a time (default: 1000).
+        columns : Optional[List[str]], optional
+            Columns to read from temporary files (default: None, read all).
+        cleanup : bool, optional
+            Delete temporary files after combining (default: True).
+    
         Raises
         ------
         ValueError
             If no valid temporary files are found or schema is required but not provided.
+    
+        Notes
+        -----
+        This method batches data to optimize memory usage and ensures consistency in column order.
+    
         """
         import glob
         import pyarrow as pa

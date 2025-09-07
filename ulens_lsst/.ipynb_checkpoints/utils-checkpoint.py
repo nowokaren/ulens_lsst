@@ -33,13 +33,11 @@ import astropy.units as u
 from psutil import Process
 from typing import Dict, Any, List, Tuple
 
-# Local imports (adjust path for photutils if necessary)
-sys.path.append("../roman_rubin/photutils/")
-from bandpass import Bandpass
-from signaltonoise import calc_mag_error_m5
-from photometric_parameters import PhotometricParameters
+from rubin_sim.phot_utils.bandpass import Bandpass
+from rubin_sim.phot_utils import calc_mag_error_m5
+from rubin_sim.phot_utils.photometric_parameters import PhotometricParameters
 from rubin_sim.data import get_baseline
-from bandpass_dict import BandpassDict
+# from bandpass_dict import BandpassDict
 import rubin_sim.maf as maf
 
 
@@ -306,9 +304,9 @@ def get_lsst_noise_for_lc(
 
     # Load photometric info
     photParams = PhotometricParameters(exptime=30, nexp=1, readnoise=None)
-    LSST_BandPass = BandpassDict.load_total_bandpasses_from_files(
-        bandpass_dir="../roman_rubin/troughputs"
-    )
+    # LSST_BandPass = BandpassDict.load_total_bandpasses_from_files(
+    #     bandpass_dir="../roman_rubin/troughputs"
+    # )
     dataSlice = get_dataSlice(ra, dec, opsim)
 
     result = {}

@@ -40,8 +40,8 @@ from scipy.stats import chi2
 import contextlib
 
 # Local imports
-from catalogs_utils import Catalog
-from ulens_utils import pacz_parameters, pylima_parameters, simulate_pacz_lightcurve, simulate_pylima_lightcurve
+from ulens_lsst.catalogs_utils import Catalog
+from ulens_lsst.ulens_utils import pacz_parameters, pylima_parameters, simulate_pacz_lightcurve, simulate_pylima_lightcurve
 
 
 class Event:
@@ -887,28 +887,57 @@ class Event:
     ) -> Dict[str, Dict[str, Any]]:
         """
         Compute chi-squared (χ²), degrees of freedom (dof), and p-value per band.
-
+        
         Chi-squared is defined as:
+        
             χ² = Σ_i [(f_i - F_ref) / σ_i]^2
-        where f_i is measured flux, σ_i is flux error, and F_ref is a reference flux
+        
+        where f_i is the measured flux, σ_i is the flux error, and F_ref is a reference flux
         (mean, median, or constant).
-
+        
         Parameters
         ----------
         cumulative : bool, optional
             Compute cumulative χ² up to each time point (default: True).
+        
         statistic : str, optional
             Method to compute F_ref: 'mean', 'median', or 'constant' (default: 'mean').
+        
         flux_constant : float, optional
             Reference flux if statistic='constant'.
-
+        
         Returns
         -------
-        Dict[str, Dict[str, Any]]
-            Dictionary with band as key and results as {'mjd': List[float], 'chi2': List[float],
-            'dof': List[int], 'p_value': List[float]} for cumulative=True, or
-            {'chi2': float, 'dof': int, 'p_value': float} for cumulative=False.
+        dict of str -> dict
+            Dictionary with band as key and results as:
+        
+            If cumulative=True:
+        
+            .. code-block:: python
+        
+                {
+                    'mjd': List[float],
+                    'chi2': List[float],
+                    'dof': List[int],
+                    'p_value': List[float]
+                }
+        
+            If cumulative=False:
+        
+            .. code-block:: python
+        
+                {
+                    'chi2': float,
+                    'dof': int,
+                    'p_value': float
+                }
+        
+        Examples
+        --------
+        >>> event.compute_chi2(mags, errs)
+        12.34
         """
+    
         results = {}
         for band in self.bands:
             mask = self.photometry["band"] == band

@@ -1,3 +1,5 @@
+.. _data:
+
 Data Setup
 ==========
 
@@ -38,7 +40,7 @@ Note: Datasets are not bundled with the package to keep the installation lightwe
 
 
 Simulation Outputs
------------------
+--------------------
 
 When running `SimPipeline(config.yaml)`, the pipeline creates a directory named after `name` (from `config.yaml`) under `main_path` (default: `/runs`). This directory stores:
 

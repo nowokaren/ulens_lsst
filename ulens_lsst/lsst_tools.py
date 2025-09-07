@@ -40,7 +40,7 @@ from lsst.source.injection import VisitInjectConfig, VisitInjectTask
 from lsst.meas.base import ForcedMeasurementTask
 
 # Local imports
-from lsst_data import Calexp
+from ulens_lsst.lsst_data import Calexp
 
 
 class LSSTTools:

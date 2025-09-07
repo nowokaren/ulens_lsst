@@ -1,0 +1,2 @@
+[console_scripts]
+ulens-lsst = ulens_lsst.run_pipeline:main

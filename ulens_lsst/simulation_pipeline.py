@@ -38,13 +38,13 @@ import astropy.units as u
 from dl import queryClient as qc
 
 # Local imports
-from catalogs_utils import Catalog
-from light_curves import Event
-from lsst_data import LSSTData
-from parallel_utils import ParallelProcessor
-from processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry
-from region_sky import SkyRegion
-from utils import setup_logger, get_nearby_objects, sky_catalog_query
+from ulens_lsst.catalogs_utils import Catalog
+from ulens_lsst.light_curves import Event
+from ulens_lsst.lsst_data import LSSTData
+from ulens_lsst.parallel_utils import ParallelProcessor
+from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry
+from ulens_lsst.region_sky import SkyRegion
+from ulens_lsst.utils import setup_logger, get_nearby_objects, sky_catalog_query
 
 
 class SimPipeline:

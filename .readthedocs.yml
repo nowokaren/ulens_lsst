@@ -5,8 +5,8 @@ build:
     python: "3.12"
 python:
   install:
-    - requirements: simulation_Rubin/ulens_lsst/docs/requirements.txt
+    - requirements: docs/requirements.txt
     - method: pip
-      path: simulation_Rubin/dp0_rubin/ulens_lsst
+      path: .
 sphinx:
-  configuration: simulation_Rubin/dp0_rubin/ulens_lsst/docs/conf.py
+  configuration: docs/conf.py

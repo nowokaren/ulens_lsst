@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: ulens_lsst
+Version: 1.0.0
+Summary: LSST Microlensing LSST-like Light Curve Simulation Pipeline
+Home-page: https://github.com/nowokaren/ulens_lsst
+Author: Karen Nowogrodzki
+Author-email: nowo.karen@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.23.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: pyarrow>=7.0.0
+Requires-Dist: astropy>=5.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# ulens_lsst
+
+![Logo](docs/_static/logo.png)
+LSST Microlensing Simulation Pipeline
+
+## Overview
+
+`ulens_lsst` is a Python package for obtaining image-based microlensing LSST-like light curves using LSST data (DP0, DP1, or rubin_sim). It supports versatile experimentation and parallelization.
+
+## Installation
+
+```bash
+pip install ulens_lsst
+
+For development:
+
+git clone https://github.com/nowokaren/ulens_lsst.git
+cd ulens_lsst
+pip install -e .
+
+### Installation Notes
+- Requires the LSST stack (e.g., `lsst-scipipe-10.0.0`) for `lsst_data` and `lsst_tools`. See [LSST installation guide](https://pipelines.lsst.io/install/lsstinstall.html) or if you are working on `https://data.lsst.cloud/`:
+
+```bash
+  source /opt/lsst/software/stack/loadLSST.bash
+  setup lsst_distrib
+
+- External datasets (e.g., `chunks_TRILEGAL_Genulens`) must be placed in `ulens_lsst/data/chunks_TRILEGAL_Genulens/`. See [Data Setup](https://ulens-lsst.readthedocs.io/en/latest/data.html).
+- Copy and configure config.yaml:
+bashcp ulens_lsst/config/config_example.yaml config.yaml
+
+
+
+## Usage
+
+Command-line:
+
+```bash
+ulens-lsst --config config.yaml --steps simulate,process_photometry
+
+## Contributors
+Karen Nowogrodzki
+Anibal Varela: Original author of ulens_utils module, adapted for ulens_lsst.

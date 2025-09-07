@@ -36,11 +36,11 @@ from astropy import units as u
 from regions import CircleSkyRegion
 
 # Local imports
-from catalogs_utils import Catalog
-from light_curves import Event
-from lsst_data import LSSTData, Calexp
-from lsst_tools import LSSTTools
-from utils import get_nearby_objects
+from ulens_lsst.catalogs_utils import Catalog
+from ulens_lsst.light_curves import Event
+from ulens_lsst.lsst_data import LSSTData, Calexp
+from ulens_lsst.lsst_tools import LSSTTools
+from ulens_lsst.utils import get_nearby_objects
 
 
 def process_cte_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -716,6 +716,7 @@ def compute_chi2(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
     -------
     Dict[str, Any]
         Dictionary with 'event_id', 'status', and optional 'error'.
+        
     """
     logger = logging.getLogger(config.get("log_name", "pipeline"))
     event_id = row["event_id"]

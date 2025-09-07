@@ -1,7 +1,7 @@
 .. ulens_lsst documentation master file
 
 Welcome to ulens_lsst Documentation
-==================================
+========================================
 
 The `ulens_lsst` package simulates microlensing events for the LSST, supporting
 DP0 simulations, DP1 real data, and rubin_sim light curves. It is designed for

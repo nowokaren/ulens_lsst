@@ -1,0 +1,1519 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create a simulation instance &mdash; Microlensing LSST Light curve Simulator 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Credits" href="../credits.html" />
+    <link rel="prev" title="Tutorials" href="../tutorials.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Microlensing LSST Light curve Simulator
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html#configuration">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html#optional-dependencies">Optional Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../tutorials.html">Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Create a simulation instance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#Simulate-light-curves">Simulate light curves</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#Check-succes-or-errors">Check succes or errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Inspect-results">Inspect results</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#If-simulation-type-is-%22lsst_images%22,-you-can-load-nearby-objects-as-follows">If simulation type is “lsst_images”, you can load nearby objects as follows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#Analysis">Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../credits.html">Credits</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Microlensing LSST Light curve Simulator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../tutorials.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">Create a simulation instance</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/tutorials/main_tutorial.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="c1"># from simulation_pipeline import SimPipeline</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">simulation_pipeline</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">simulation_pipeline</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulation_pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimPipeline</span>
+</pre></div>
+</div>
+</div>
+<section id="Create-a-simulation-instance">
+<h1>Create a simulation instance<a class="headerlink" href="#Create-a-simulation-instance" title="Link to this heading"></a></h1>
+<p>From config file path</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span> <span class="o">=</span> <span class="s2">&quot;new_test&quot;</span>
+<span class="n">sim</span> <span class="o">=</span> <span class="n">SimPipeline</span><span class="p">(</span><span class="n">from_folder</span> <span class="o">=</span> <span class="n">sim_name</span><span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">CONFIG_PATH</span> <span class="o">=</span> <span class="s2">&quot;config_file.yaml&quot;</span>
+<span class="n">sim</span> <span class="o">=</span> <span class="n">SimPipeline</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">sim</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+SimPipeline: new_test
+=====================
+
+General configuration:
+ - Number of events: 20
+ - Model: USBL
+ - System type: Planets_systems
+ - Sources catalog: AstroDataLab
+ - Bands: u, g, r, i, z, y
+ - Simulation type: lsst_images
+ - Data Preview: dp0
+
+
+Sky region:
+ - Distribution: circle
+ - Center: (ra=62, dec=-36) deg (icrs)
+ - Radius: 0.05 deg
+ - Blend distance: 0.001 deg
+
+ - Survey dates (MJD): 60849 to 61944
+ - Peak range (MJD): 61579 to 63769.25
+
+Processing:
+ - Event processor: ulens
+ - Photometry processor: synthetic
+
+Directories:
+ - Output dir: runs/new_test
+ - Data events: runs/new_test/data-events_1.parquet
+ - Photometry: runs/new_test/photometry_1.parquet
+ - Calexps photometry: runs/new_test/calexps-photometry_1.parquet
+</pre></div></div>
+</div>
+</section>
+<section id="Simulate-light-curves">
+<h1>Simulate light curves<a class="headerlink" href="#Simulate-light-curves" title="Link to this heading"></a></h1>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_events</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">simulate_lightcurves</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Collecting calexps for bands (&#39;u&#39;, &#39;g&#39;, &#39;r&#39;, &#39;i&#39;, &#39;z&#39;, &#39;y&#39;)...
+Found 999 calexps.
+Loading data from dp02_dc2_catalogs.CcdVisit...
+Records found: 5256
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+Chunk 1: 100%|██████████| 2/2 [00:06&lt;00:00,  3.50s/it]:00&lt;?, ?it/s]
+Chunk 6: 100%|██████████| 2/2 [00:07&lt;00:00,  3.51s/it]
+Chunk 5: 100%|██████████| 2/2 [00:07&lt;00:00,  3.56s/it]
+Chunk 0: 100%|██████████| 2/2 [00:07&lt;00:00,  3.65s/it]
+Chunk 7: 100%|██████████| 2/2 [00:07&lt;00:00,  3.66s/it]:07&lt;01:05,  7.30s/it]
+Chunk 4: 100%|██████████| 2/2 [00:07&lt;00:00,  3.69s/it]
+Chunk 3: 100%|██████████| 2/2 [00:07&lt;00:00,  3.71s/it]
+Chunk 2: 100%|██████████| 2/2 [00:07&lt;00:00,  3.76s/it]
+Chunk 8: 100%|██████████| 2/2 [00:02&lt;00:00,  1.21s/it]:07&lt;00:13,  1.98s/it]
+Chunk 9: 100%|██████████| 2/2 [00:02&lt;00:00,  1.22s/it]:09&lt;00:00,  1.40it/s]
+Running parallel processing: 100%|██████████| 10/10 [00:09&lt;00:00,  1.06it/s]
+</pre></div></div>
+</div>
+<section id="Check-succes-or-errors">
+<h2>Check succes or errors<a class="headerlink" href="#Check-succes-or-errors" title="Link to this heading"></a></h2>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">results_events</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_events</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="output_area rendered_html docutils container">
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>event_id</th>
+      <th>status</th>
+      <th>error</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>3</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>4</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>13</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>14</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>11</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>12</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>1</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>2</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>15</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>16</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>9</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>10</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>7</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>8</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>5</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>6</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>17</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>18</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>19</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>20</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+</div></div>
+</div>
+</section>
+<section id="Inspect-results">
+<h2>Inspect results<a class="headerlink" href="#Inspect-results" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[53]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># from simulation_pipeline import SimPipeline</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">light_curves</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">light_curves</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">light_curves</span><span class="w"> </span><span class="kn">import</span> <span class="n">Event</span>
+<span class="n">event</span> <span class="o">=</span> <span class="n">Event</span><span class="o">.</span><span class="n">from_parquet</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">sim</span><span class="o">.</span><span class="n">calexps_photometry_file</span><span class="p">,</span> <span class="n">sim</span><span class="o">.</span><span class="n">events_file</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[54]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">event</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">show_ideal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">simulate_ideal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[54]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;Axes: title={&#39;center&#39;: &#39;Event 8&#39;}, xlabel=&#39;Time (MJD)&#39;, ylabel=&#39;Magnitude&#39;&gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_main_tutorial_13_1.png" src="../_images/tutorials_main_tutorial_13_1.png" />
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[56]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_event_fov</span>
+<span class="n">plot_event_fov</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">sim</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "075db5a7e7094503a0c17d0a1bcbe217", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[61]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="n">ev</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">events_file</span><span class="p">)</span>
+<span class="c1"># ev.columns</span>
+<span class="c1"># pd.read_csv(&quot;runs/new_test/AstroDataLab_event_sources_catalog.csv&quot;)</span>
+<span class="n">ph</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">photometry_file</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="If-simulation-type-is-%22lsst_images%22,-you-can-load-nearby-objects-as-follows">
+<h1>If simulation type is “lsst_images”, you can load nearby objects as follows<a class="headerlink" href="#If-simulation-type-is-%22lsst_images%22,-you-can-load-nearby-objects-as-follows" title="Link to this heading"></a></h1>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">sim</span><span class="o">.</span><span class="n">load_nearby_objects</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Loading data from dp02_dc2_catalogs.Object...
+Records found: 6639
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_calexps</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">process_synthetic_photometry</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+Chunk 3: 100%|██████████| 125/125 [10:41&lt;00:00,  5.13s/it], ?it/s]
+Chunk 7: 100%|██████████| 124/124 [10:43&lt;00:00,  5.19s/it]
+Chunk 1: 100%|██████████| 125/125 [10:44&lt;00:00,  5.16s/it]
+Chunk 2: 100%|██████████| 125/125 [10:45&lt;00:00,  5.17s/it]
+Chunk 6: 100%|██████████| 125/125 [10:46&lt;00:00,  5.17s/it]
+Chunk 4: 100%|██████████| 125/125 [10:47&lt;00:00,  5.18s/it]
+Chunk 5: 100%|██████████| 125/125 [10:57&lt;00:00,  5.26s/it]
+Chunk 0: 100%|██████████| 125/125 [10:58&lt;00:00,  5.27s/it]
+Running parallel processing: 100%|██████████| 8/8 [10:58&lt;00:00, 82.32s/it]
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_calexps</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+error
+                                              779
+No sources to inject: skipping this calexp    220
+Name: count, dtype: int64
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">results_calexps</span><span class="p">[</span><span class="n">results_calexps</span><span class="p">[</span><span class="s2">&quot;calexp_id&quot;</span><span class="p">]</span><span class="o">==</span><span class="mi">252</span><span class="p">]</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+376
+Name: error, dtype: object
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_calexps</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="output_area rendered_html docutils container">
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>calexp_id</th>
+      <th>status</th>
+      <th>error</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>375</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>376</td>
+      <td>failed</td>
+      <td>No sources to inject: skipping this calexp</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>377</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>378</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>379</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>994</th>
+      <td>120</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>995</th>
+      <td>121</td>
+      <td>failed</td>
+      <td>No sources to inject: skipping this calexp</td>
+    </tr>
+    <tr>
+      <th>996</th>
+      <td>122</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>997</th>
+      <td>123</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>998</th>
+      <td>124</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+<p>999 rows × 3 columns</p>
+</div></div>
+</div>
+</section>
+<section id="Analysis">
+<h1>Analysis<a class="headerlink" href="#Analysis" title="Link to this heading"></a></h1>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[21]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">analysis</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_sky_map</span><span class="p">,</span> <span class="n">generate_time_log</span><span class="p">,</span> <span class="n">generate_summary_plot</span>
+<span class="n">plot_sky_map</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">zoom</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Loading data from dp02_dc2_catalogs.Source...
+Records found: 138380
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[46]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">analysis</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_sky_map</span><span class="p">,</span> <span class="n">generate_time_log</span><span class="p">,</span> <span class="n">generate_summary_plot</span>
+<span class="n">generate_time_log</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="n">generate_summary_plot</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[46]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+(                             item                                        task  \
+ 4                          Calexp                              Loading calexp
+ 6                          Calexp                                   Measuring
+ 3                          Calexp                                   Injecting
+ 5                          Calexp                Loading events for injection
+ 8                          Calexp                   Saving photometry results
+ ..                            ...                                         ...
+ 203              lsst.measurement  Performing forced measurement on 7 sources
+ 204              lsst.measurement  Performing forced measurement on 8 sources
+ 205              lsst.measurement  Performing forced measurement on 9 sources
+ 206  process_synthetic_photometry                process_synthetic_photometry
+ 207          simulate_lightcurves                        simulate_lightcurves
+
+      count  total_duration  mean_duration
+ 4      999        4495.080       0.595217
+ 6      779         321.609       0.042586
+ 3      999         298.057       0.039467
+ 5      999          17.582       0.002328
+ 8      779           7.229       0.000957
+ ..     ...             ...            ...
+ 203     35           0.000       0.000000
+ 204     27           0.000       0.000000
+ 205     24           0.000       0.000000
+ 206      2         663.891     331.945500
+ 207      2          26.145      13.072500
+
+ [208 rows x 5 columns],
+                            item  count  total_duration
+ 0                        Calexp   7552        5149.976
+ 5  process_synthetic_photometry      2         663.891
+ 1                         Event    100          62.345
+ 6          simulate_lightcurves      2          26.145
+ 2           load_nearby_objects      2           8.292
+ 4              lsst.measurement    779           0.000
+ 3                lsst.injection   6127           0.000)
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[50]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_df</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">compute_events_chi2</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+Chunk 2: 100%|██████████| 2/2 [00:03&lt;00:00,  1.69s/it]:00&lt;?, ?it/s]
+Chunk 0: 100%|██████████| 2/2 [00:03&lt;00:00,  1.75s/it]
+Chunk 3: 100%|██████████| 2/2 [00:03&lt;00:00,  1.78s/it]:03&lt;00:31,  3.50s/it]
+Chunk 1: 100%|██████████| 2/2 [00:03&lt;00:00,  1.83s/it]
+Chunk 7: 100%|██████████| 2/2 [00:03&lt;00:00,  1.83s/it]:03&lt;00:12,  1.54s/it]
+Chunk 5: 100%|██████████| 2/2 [00:03&lt;00:00,  1.88s/it]
+Chunk 6: 100%|██████████| 2/2 [00:03&lt;00:00,  1.88s/it]
+Chunk 4: 100%|██████████| 2/2 [00:03&lt;00:00,  1.94s/it]
+Chunk 8: 100%|██████████| 2/2 [00:00&lt;00:00,  2.35it/s]:03&lt;00:02,  2.03it/s]
+Chunk 9: 100%|██████████| 2/2 [00:00&lt;00:00,  2.64it/s]:04&lt;00:00,  3.88it/s]
+Running parallel processing: 100%|██████████| 10/10 [00:04&lt;00:00,  2.35it/s]
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[51]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">results_df</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[51]:
+</pre></div>
+</div>
+<div class="output_area rendered_html docutils container">
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>event_id</th>
+      <th>status</th>
+      <th>error</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>1</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>14</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>13</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>3</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>15</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>9</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>7</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>11</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>8</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>6</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>10</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>16</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>12</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>2</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>5</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>4</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>17</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>19</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>18</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>20</td>
+      <td>success</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+</div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[52]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">events_file</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[52]:
+</pre></div>
+</div>
+<div class="output_area rendered_html docutils container">
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>event_id</th>
+      <th>ra</th>
+      <th>dec</th>
+      <th>model</th>
+      <th>system_type</th>
+      <th>points</th>
+      <th>logL</th>
+      <th>logTe</th>
+      <th>D_L</th>
+      <th>D_S</th>
+      <th>...</th>
+      <th>p_value_r</th>
+      <th>p_value_u</th>
+      <th>p_value_y</th>
+      <th>p_value_z</th>
+      <th>dof_g</th>
+      <th>dof_i</th>
+      <th>dof_r</th>
+      <th>dof_u</th>
+      <th>dof_y</th>
+      <th>dof_z</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>13</td>
+      <td>61.986305</td>
+      <td>-35.993687</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.169</td>
+      <td>3.5707</td>
+      <td>5248.0</td>
+      <td>7889.0</td>
+      <td>...</td>
+      <td>6.170076e-239</td>
+      <td>3.245981e-02</td>
+      <td>5.028333e-03</td>
+      <td>1.586426e-16</td>
+      <td>53.0</td>
+      <td>99.0</td>
+      <td>108.0</td>
+      <td>32.0</td>
+      <td>80.0</td>
+      <td>50.0</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>3</td>
+      <td>61.966808</td>
+      <td>-36.003048</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>1.659</td>
+      <td>3.7111</td>
+      <td>6834.0</td>
+      <td>7359.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>52.0</td>
+      <td>101.0</td>
+      <td>110.0</td>
+      <td>34.0</td>
+      <td>78.0</td>
+      <td>48.0</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>7</td>
+      <td>62.009853</td>
+      <td>-35.979130</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-0.023</td>
+      <td>3.7699</td>
+      <td>6965.0</td>
+      <td>7516.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>NaN</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>52.0</td>
+      <td>96.0</td>
+      <td>107.0</td>
+      <td>36.0</td>
+      <td>79.0</td>
+      <td>49.0</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>11</td>
+      <td>62.006210</td>
+      <td>-35.961353</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.677</td>
+      <td>3.6234</td>
+      <td>7887.0</td>
+      <td>7989.0</td>
+      <td>...</td>
+      <td>4.739302e-01</td>
+      <td>2.113814e-01</td>
+      <td>6.926081e-02</td>
+      <td>1.288388e-01</td>
+      <td>53.0</td>
+      <td>101.0</td>
+      <td>103.0</td>
+      <td>31.0</td>
+      <td>74.0</td>
+      <td>50.0</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>1</td>
+      <td>62.034294</td>
+      <td>-36.027569</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.298</td>
+      <td>3.5191</td>
+      <td>4581.0</td>
+      <td>7715.0</td>
+      <td>...</td>
+      <td>3.467976e-01</td>
+      <td>2.781362e-01</td>
+      <td>7.064363e-01</td>
+      <td>2.075542e-03</td>
+      <td>52.0</td>
+      <td>102.0</td>
+      <td>106.0</td>
+      <td>34.0</td>
+      <td>79.0</td>
+      <td>49.0</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>14</td>
+      <td>62.058517</td>
+      <td>-35.988567</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.186</td>
+      <td>3.6664</td>
+      <td>6545.0</td>
+      <td>7158.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>53.0</td>
+      <td>103.0</td>
+      <td>108.0</td>
+      <td>34.0</td>
+      <td>76.0</td>
+      <td>51.0</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>15</td>
+      <td>62.055229</td>
+      <td>-35.979580</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.701</td>
+      <td>3.5808</td>
+      <td>3828.0</td>
+      <td>7901.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>4.399416e-01</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>55.0</td>
+      <td>99.0</td>
+      <td>105.0</td>
+      <td>33.0</td>
+      <td>74.0</td>
+      <td>48.0</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>9</td>
+      <td>61.971760</td>
+      <td>-36.030972</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-0.968</td>
+      <td>3.6864</td>
+      <td>4616.0</td>
+      <td>7994.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>1.881908e-02</td>
+      <td>2.403833e-73</td>
+      <td>0.000000e+00</td>
+      <td>52.0</td>
+      <td>95.0</td>
+      <td>110.0</td>
+      <td>29.0</td>
+      <td>76.0</td>
+      <td>48.0</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>5</td>
+      <td>62.034660</td>
+      <td>-35.981194</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.174</td>
+      <td>3.5934</td>
+      <td>3573.0</td>
+      <td>6326.0</td>
+      <td>...</td>
+      <td>8.760936e-01</td>
+      <td>1.312552e-01</td>
+      <td>1.008930e-01</td>
+      <td>8.158348e-01</td>
+      <td>52.0</td>
+      <td>101.0</td>
+      <td>111.0</td>
+      <td>34.0</td>
+      <td>77.0</td>
+      <td>49.0</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>4</td>
+      <td>61.978260</td>
+      <td>-36.024632</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-3.020</td>
+      <td>3.4340</td>
+      <td>7332.0</td>
+      <td>7353.0</td>
+      <td>...</td>
+      <td>1.736299e-05</td>
+      <td>5.313865e-01</td>
+      <td>2.197062e-01</td>
+      <td>7.087297e-02</td>
+      <td>52.0</td>
+      <td>93.0</td>
+      <td>110.0</td>
+      <td>30.0</td>
+      <td>76.0</td>
+      <td>48.0</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>10</td>
+      <td>61.987141</td>
+      <td>-36.002804</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.306</td>
+      <td>3.6458</td>
+      <td>6905.0</td>
+      <td>7653.0</td>
+      <td>...</td>
+      <td>4.862744e-05</td>
+      <td>8.844074e-01</td>
+      <td>6.979194e-01</td>
+      <td>2.215075e-01</td>
+      <td>51.0</td>
+      <td>93.0</td>
+      <td>109.0</td>
+      <td>31.0</td>
+      <td>81.0</td>
+      <td>51.0</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>16</td>
+      <td>62.050762</td>
+      <td>-35.981724</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-0.023</td>
+      <td>3.7699</td>
+      <td>5436.0</td>
+      <td>5547.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>54.0</td>
+      <td>99.0</td>
+      <td>99.0</td>
+      <td>32.0</td>
+      <td>72.0</td>
+      <td>47.0</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>12</td>
+      <td>61.995205</td>
+      <td>-35.979721</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.429</td>
+      <td>3.4835</td>
+      <td>5872.0</td>
+      <td>7203.0</td>
+      <td>...</td>
+      <td>6.292519e-04</td>
+      <td>8.514533e-01</td>
+      <td>6.857833e-01</td>
+      <td>1.172805e-01</td>
+      <td>52.0</td>
+      <td>100.0</td>
+      <td>107.0</td>
+      <td>34.0</td>
+      <td>78.0</td>
+      <td>50.0</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>2</td>
+      <td>61.992966</td>
+      <td>-35.982212</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.080</td>
+      <td>3.6163</td>
+      <td>2758.0</td>
+      <td>6055.0</td>
+      <td>...</td>
+      <td>9.882754e-01</td>
+      <td>6.260478e-01</td>
+      <td>6.451013e-02</td>
+      <td>5.023511e-19</td>
+      <td>51.0</td>
+      <td>102.0</td>
+      <td>106.0</td>
+      <td>33.0</td>
+      <td>77.0</td>
+      <td>50.0</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>8</td>
+      <td>61.966984</td>
+      <td>-35.976086</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.474</td>
+      <td>3.6386</td>
+      <td>1832.0</td>
+      <td>7772.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>2.211696e-236</td>
+      <td>0.000000e+00</td>
+      <td>0.000000e+00</td>
+      <td>48.0</td>
+      <td>99.0</td>
+      <td>106.0</td>
+      <td>30.0</td>
+      <td>78.0</td>
+      <td>49.0</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>6</td>
+      <td>62.045471</td>
+      <td>-35.975319</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.934</td>
+      <td>3.5520</td>
+      <td>5568.0</td>
+      <td>6203.0</td>
+      <td>...</td>
+      <td>2.394904e-02</td>
+      <td>9.437494e-01</td>
+      <td>9.732254e-03</td>
+      <td>5.873648e-01</td>
+      <td>54.0</td>
+      <td>99.0</td>
+      <td>103.0</td>
+      <td>33.0</td>
+      <td>72.0</td>
+      <td>50.0</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>17</td>
+      <td>62.032154</td>
+      <td>-36.009220</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-2.912</td>
+      <td>3.4496</td>
+      <td>2817.0</td>
+      <td>5156.0</td>
+      <td>...</td>
+      <td>4.214567e-01</td>
+      <td>3.702088e-01</td>
+      <td>7.029415e-01</td>
+      <td>6.609165e-01</td>
+      <td>50.0</td>
+      <td>100.0</td>
+      <td>101.0</td>
+      <td>34.0</td>
+      <td>74.0</td>
+      <td>47.0</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>19</td>
+      <td>62.021210</td>
+      <td>-36.037632</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-0.239</td>
+      <td>3.7338</td>
+      <td>7642.0</td>
+      <td>7881.0</td>
+      <td>...</td>
+      <td>8.145106e-01</td>
+      <td>3.931846e-01</td>
+      <td>5.595125e-01</td>
+      <td>3.526637e-01</td>
+      <td>52.0</td>
+      <td>93.0</td>
+      <td>109.0</td>
+      <td>32.0</td>
+      <td>79.0</td>
+      <td>49.0</td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>18</td>
+      <td>61.997005</td>
+      <td>-36.015438</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.001</td>
+      <td>3.6500</td>
+      <td>7377.0</td>
+      <td>7671.0</td>
+      <td>...</td>
+      <td>0.000000e+00</td>
+      <td>6.386555e-04</td>
+      <td>1.237014e-311</td>
+      <td>0.000000e+00</td>
+      <td>51.0</td>
+      <td>97.0</td>
+      <td>105.0</td>
+      <td>30.0</td>
+      <td>80.0</td>
+      <td>46.0</td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>20</td>
+      <td>62.039639</td>
+      <td>-36.008492</td>
+      <td>USBL</td>
+      <td>Planets_systems</td>
+      <td>491</td>
+      <td>-1.499</td>
+      <td>3.5880</td>
+      <td>6743.0</td>
+      <td>7998.0</td>
+      <td>...</td>
+      <td>7.357156e-12</td>
+      <td>2.541213e-01</td>
+      <td>9.072839e-03</td>
+      <td>1.124680e-02</td>
+      <td>50.0</td>
+      <td>99.0</td>
+      <td>104.0</td>
+      <td>34.0</td>
+      <td>74.0</td>
+      <td>49.0</td>
+    </tr>
+  </tbody>
+</table>
+<p>20 rows × 105 columns</p>
+</div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">analysis</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_event_fov</span>
+<span class="n">plot_event_fov</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;new_test&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "876fe17dcd68477290a7a8dfb29c2f50", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../tutorials.html" class="btn btn-neutral float-left" title="Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../credits.html" class="btn btn-neutral float-right" title="Credits" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Karen Nowogrodzki.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,485 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ulens_lsst.parallel_utils &mdash; Microlensing LSST Light curve Simulator 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Microlensing LSST Light curve Simulator
+              <img src="../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html#configuration">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html#optional-dependencies">Optional Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../data.html">Data Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../credits.html">Credits</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Microlensing LSST Light curve Simulator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">ulens_lsst.parallel_utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for ulens_lsst.parallel_utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Parallel processing utilities for the LSST pipeline project.</span>
+
+<span class="sd">This module provides the ParallelProcessor class for parallelizing data processing</span>
+<span class="sd">tasks on large Parquet datasets with progress tracking, checkpointing, and temporary</span>
+<span class="sd">file management. It integrates with the catalogs_utils.Catalog class for efficient</span>
+<span class="sd">management of Parquet files, supporting appending results and combining temporary</span>
+<span class="sd">files to optimize disk space. The design prioritizes memory efficiency by processing</span>
+<span class="sd">data in chunks and time efficiency through multiprocessing.</span>
+
+<span class="sd">The module is intended for use in scientific experiments, such as injecting sources</span>
+<span class="sd">into LSST images (DP0 simulations or DP1 real data samples) and performing photometric</span>
+<span class="sd">measurements, or simulating light curves with rubin_sim.</span>
+
+<span class="sd">Classes</span>
+<span class="sd">-------</span>
+<span class="sd">ParallelProcessor : Manages parallel processing of Parquet datasets with checkpointing and file management.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># Standard library imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="kn">import</span> <span class="n">glob</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="c1"># Third-party imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">multiprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pool</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="c1"># Local imports</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">catalogs_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Catalog</span>
+
+
+<div class="viewcode-block" id="ParallelProcessor">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.parallel_utils.ParallelProcessor">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ParallelProcessor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class for parallel processing of Parquet datasets with progress tracking and checkpointing.</span>
+
+<span class="sd">    This class reads a Parquet file in chunks to minimize memory usage, processes rows in parallel</span>
+<span class="sd">    using a provided function, and saves results to Parquet files. It supports checkpointing by</span>
+<span class="sd">    saving partial results at intervals and combines temporary files when a maximum number is</span>
+<span class="sd">    reached to optimize disk space. Integrates with catalogs_utils.Catalog for efficient Parquet</span>
+<span class="sd">    handling.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_path : str</span>
+<span class="sd">        Path to the input Parquet file.</span>
+<span class="sd">    output_dir : str</span>
+<span class="sd">        Directory for output and temporary files.</span>
+<span class="sd">    process_fn : Callable[[pd.Series, Dict[str, Any]], Dict[str, Any]]</span>
+<span class="sd">        Function to process each row.</span>
+<span class="sd">    config : Dict[str, Any]</span>
+<span class="sd">        Configuration dictionary.</span>
+<span class="sd">    chunk_size : int</span>
+<span class="sd">        Number of rows per chunk.</span>
+<span class="sd">    checkpoint_interval : int</span>
+<span class="sd">        Interval for saving partial results.</span>
+<span class="sd">    debug : bool</span>
+<span class="sd">        Enable debug logging and progress bars.</span>
+<span class="sd">    max_temp_files : int, optional</span>
+<span class="sd">        Maximum number of temporary files before combining.</span>
+<span class="sd">    photometry_catalog : catalogs_utils.Catalog</span>
+<span class="sd">        Catalog for photometry data.</span>
+<span class="sd">    events_catalog : catalogs_utils.Catalog</span>
+<span class="sd">        Catalog for events data.</span>
+<span class="sd">    results : List[Dict[str, Any]]</span>
+<span class="sd">        Accumulated processing results.</span>
+<span class="sd">    logger : logging.Logger</span>
+<span class="sd">        Logger for debugging and logging.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">process_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="n">checkpoint_interval</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">max_temp_files</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">photometry_catalog</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Catalog</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">events_catalog</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Catalog</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the parallel processor.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        input_path : str</span>
+<span class="sd">            Path to the input Parquet file containing data to process.</span>
+<span class="sd">        output_dir : str</span>
+<span class="sd">            Directory to store output results and temporary files.</span>
+<span class="sd">        process_fn : Callable[[pd.Series, Dict[str, Any]], Dict[str, Any]]</span>
+<span class="sd">            Function to process a single row, taking a pandas.Series and config dict, returning a result dict.</span>
+<span class="sd">        config : dict, optional</span>
+<span class="sd">            Additional configuration (e.g., from a YAML file).</span>
+<span class="sd">        chunk_size : int, optional</span>
+<span class="sd">            Number of rows per chunk for processing (default: 1000).</span>
+<span class="sd">        checkpoint_interval : int, optional</span>
+<span class="sd">            Interval (in rows) to save partial results (default: 1000).</span>
+<span class="sd">        debug : bool, optional</span>
+<span class="sd">            Enable debug logging and progress bars (default: False).</span>
+<span class="sd">        max_temp_files : int, optional</span>
+<span class="sd">            Maximum number of temporary files before combining (default: None).</span>
+<span class="sd">        photometry_catalog : catalogs_utils.Catalog, optional</span>
+<span class="sd">            Catalog for photometry Parquet file; creates new if None.</span>
+<span class="sd">        events_catalog : catalogs_utils.Catalog, optional</span>
+<span class="sd">            Catalog for events Parquet file; creates new if None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_path</span> <span class="o">=</span> <span class="n">input_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span> <span class="o">=</span> <span class="n">output_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_fn</span> <span class="o">=</span> <span class="n">process_fn</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chunk_size</span> <span class="o">=</span> <span class="n">chunk_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_interval</span> <span class="o">=</span> <span class="n">checkpoint_interval</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_temp_files</span> <span class="o">=</span> <span class="n">max_temp_files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">photometry_catalog</span> <span class="o">=</span> <span class="n">photometry_catalog</span> <span class="ow">or</span> <span class="n">Catalog</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;photometry.parquet&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">events_catalog</span> <span class="o">=</span> <span class="n">events_catalog</span> <span class="ow">or</span> <span class="n">Catalog</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;data-events.parquet&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="c1"># os.makedirs(self.output_dir, exist_ok=True)</span>
+
+<div class="viewcode-block" id="ParallelProcessor.save_results">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.parallel_utils.ParallelProcessor.save_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_results</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chunk_idx</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;append&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save accumulated results to results.parquet and combine temporary files if needed.</span>
+
+<span class="sd">        Appends to the results file if it exists; otherwise, creates it with a schema. Combines</span>
+<span class="sd">        temporary photometry and events files when max_temp_files is reached to free disk space.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        chunk_idx : str</span>
+<span class="sd">            Identifier for the current chunk (for logging).</span>
+<span class="sd">        mode : str, optional</span>
+<span class="sd">            Mode for saving results: &#39;append&#39; or &#39;overwrite&#39; (default: &#39;append&#39;).</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If results are empty, mode is invalid, or saving/combining fails.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No results to save for chunk </span><span class="si">{</span><span class="n">chunk_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;append&quot;</span><span class="p">,</span> <span class="s2">&quot;overwrite&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid mode: </span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">. Must be &#39;append&#39; or &#39;overwrite&#39;.&quot;</span><span class="p">)</span>
+
+        <span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;results_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">process_fn</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">.parquet&quot;</span><span class="p">)</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">results_schema</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">pa</span><span class="o">.</span><span class="n">int32</span><span class="p">(),</span>
+                <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">(),</span>
+                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="n">output_catalog</span> <span class="o">=</span> <span class="n">Catalog</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">results_schema</span><span class="p">)</span>
+        
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;append&quot;</span><span class="p">:</span>
+                <span class="n">output_catalog</span><span class="o">.</span><span class="n">add_rows</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;append&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">output_catalog</span><span class="o">.</span><span class="n">add_rows</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;overwrite&quot;</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">results_schema</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Saved </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span><span class="si">}</span><span class="s2"> results to </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2"> (mode=</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">, chunk=</span><span class="si">{</span><span class="n">chunk_idx</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving results to </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving results to </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Combine temporary files if max_temp_files is reached</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_temp_files</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">temp_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;temp_dir&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">)</span>
+            <span class="n">photometry_files</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">temp_dir</span><span class="p">,</span> <span class="s2">&quot;temp_photometry_*.parquet&quot;</span><span class="p">))</span>
+            <span class="n">events_files</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">temp_dir</span><span class="p">,</span> <span class="s2">&quot;temp_events_*.parquet&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">photometry_files</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_temp_files</span>
+                <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">events_files</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_temp_files</span>
+            <span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Reached </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">max_temp_files</span><span class="si">}</span><span class="s2"> temporary files. Combining...&quot;</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">photometry_catalog</span><span class="o">.</span><span class="n">combine_parquet_files</span><span class="p">(</span>
+                        <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">,</span>
+                        <span class="n">schema</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry_catalog</span><span class="o">.</span><span class="n">get_schema</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry_catalog</span><span class="o">.</span><span class="n">file_path</span><span class="p">)</span>
+                        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+                        <span class="n">cleanup</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Combined </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">photometry_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> temporary photometry files to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry_catalog</span><span class="o">.</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error combining photometry files: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error combining photometry files: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">events_catalog</span><span class="o">.</span><span class="n">combine_parquet_files</span><span class="p">(</span>
+                        <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">,</span>
+                        <span class="n">schema</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">events_catalog</span><span class="o">.</span><span class="n">get_schema</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">events_catalog</span><span class="o">.</span><span class="n">file_path</span><span class="p">)</span>
+                        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+                        <span class="n">cleanup</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Combined </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">events_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> temporary events files to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">events_catalog</span><span class="o">.</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error combining events files: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error combining events files: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ParallelProcessor.process_chunk">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.parallel_utils.ParallelProcessor.process_chunk">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process_chunk</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">chunk</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">chunk_idx</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process a chunk of data using the provided function with progress bar and checkpointing.</span>
+
+<span class="sd">        Saves partial results at checkpoint intervals to avoid memory buildup during long chunks.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        chunk : pd.DataFrame</span>
+<span class="sd">            DataFrame chunk to process.</span>
+<span class="sd">        chunk_idx : int</span>
+<span class="sd">            Index of the chunk for identification.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        List[Dict[str, Any]]</span>
+<span class="sd">            List of results for each row in the chunk.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span>
+            <span class="n">chunk</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span>
+            <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="p">),</span>
+            <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Chunk </span><span class="si">{</span><span class="n">chunk_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">disable</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_fn</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">save_results</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">chunk_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;append&quot;</span><span class="p">)</span>
+                <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">results</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_results</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">chunk_idx</span><span class="si">}</span><span class="s2">_end&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;append&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_chunk_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wrapper for process_chunk to make it picklable for multiprocessing.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        args : Tuple[pd.DataFrame, int]</span>
+<span class="sd">            Tuple containing the chunk DataFrame and chunk index.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        List[Dict[str, Any]]</span>
+<span class="sd">            Results from process_chunk.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chunk</span><span class="p">,</span> <span class="n">chunk_idx</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_chunk</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">chunk_idx</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ParallelProcessor.process">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.parallel_utils.ParallelProcessor.process">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">num_pools</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">end_idx</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process the dataset in parallel using multiple processes.</span>
+
+<span class="sd">        Reads the input Parquet file, applies index limits, splits into chunks, and processes</span>
+<span class="sd">        them in parallel. To optimize memory, avoids loading unnecessary columns if possible,</span>
+<span class="sd">        but currently loads full DataFrame (future improvement: use Parquet batches).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        num_pools : int, optional</span>
+<span class="sd">            Number of parallel processes to use (default: 4).</span>
+<span class="sd">        start_idx : int, optional</span>
+<span class="sd">            Starting row index for processing (default: 0).</span>
+<span class="sd">        end_idx : int, optional</span>
+<span class="sd">            Ending row index for processing (processes all if None).</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; processor = ParallelProcessor(</span>
+<span class="sd">        ...     input_path=&quot;input.parquet&quot;,</span>
+<span class="sd">        ...     output_dir=&quot;output&quot;,</span>
+<span class="sd">        ...     process_fn=my_function,</span>
+<span class="sd">        ...     chunk_size=1000,</span>
+<span class="sd">        ...     debug=True</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; processor.process(num_pools=4)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.parquet&quot;</span><span class="p">):</span>
+                <span class="n">table</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_path</span><span class="p">)</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.csv&quot;</span><span class="p">):</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_path</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Input Parquet file not found. Creating empty results.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">end_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:]</span>
+        <span class="n">chunks</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span> <span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">chunk_size</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">chunk_size</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">num_pools</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+            <span class="n">chunk_results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+                <span class="n">tqdm</span><span class="p">(</span>
+                    <span class="n">pool</span><span class="o">.</span><span class="n">imap</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_chunk_wrapper</span><span class="p">,</span>
+                        <span class="p">[(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">chunks</span><span class="p">)],</span>
+                    <span class="p">),</span>
+                    <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">),</span>
+                    <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Running parallel processing&quot;</span><span class="p">,</span>
+                    <span class="n">disable</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">sublist</span> <span class="ow">in</span> <span class="n">chunk_results</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">sublist</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_results</span><span class="p">(</span><span class="s2">&quot;final&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;append&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ParallelProcessor.get_results">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.parallel_utils.ParallelProcessor.get_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_results</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve accumulated results from results.parquet.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        pd.DataFrame</span>
+<span class="sd">            DataFrame containing all processing results. Returns empty DataFrame if file does not exist.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;results_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">process_fn</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">.parquet&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">output_path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;event_id&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">])</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Karen Nowogrodzki.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

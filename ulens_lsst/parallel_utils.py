@@ -31,7 +31,7 @@ from multiprocessing import Pool
 from tqdm import tqdm
 
 # Local imports
-from catalogs_utils import Catalog
+from ulens_lsst.catalogs_utils import Catalog
 
 
 class ParallelProcessor:

@@ -1,3 +1,5 @@
+.. _tutorials:
+
 Tutorials
 =========
 
@@ -6,6 +8,5 @@ The following Jupyter notebooks demonstrate how to use `ulens_lsst`:
 .. toctree::
    :maxdepth: 1
 
-   tutorials/
+   tutorials/main_tutorial
 
-No tutorials uploaded yet, sorry!

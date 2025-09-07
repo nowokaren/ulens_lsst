@@ -1,0 +1,1129 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ulens_lsst.light_curves &mdash; Microlensing LSST Light curve Simulator 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Microlensing LSST Light curve Simulator
+              <img src="../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html#configuration">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html#optional-dependencies">Optional Dependencies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../data.html">Data Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../credits.html">Credits</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Microlensing LSST Light curve Simulator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">ulens_lsst.light_curves</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for ulens_lsst.light_curves</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Light curve management module for the LSST pipeline project.</span>
+
+<span class="sd">This module provides the `Event` class for managing microlensing events, including</span>
+<span class="sd">their coordinates, light curves, and parameters. It supports generating and simulating</span>
+<span class="sd">light curves using models like Paczynski or pyLIMA (USBL, FSPL, PSPL), storing data</span>
+<span class="sd">in Parquet files, and visualizing results. The module is optimized for memory efficiency</span>
+<span class="sd">by using selective data loading and pyarrow for Parquet operations, and for time efficiency</span>
+<span class="sd">through streamlined parameter handling and parallel processing capabilities. It integrates</span>
+<span class="sd">with other pipeline modules (e.g., `ulens_utils`, `catalogs_utils`) for comprehensive</span>
+<span class="sd">microlensing experiments, such as studying light curve recoverability and blending effects.</span>
+
+<span class="sd">Classes</span>
+<span class="sd">-------</span>
+<span class="sd">Event : Manages a microlensing event, including coordinates, light curves, and parameters.</span>
+
+<span class="sd">Constants</span>
+<span class="sd">---------</span>
+<span class="sd">DEFAULT_COLORS : Dictionary mapping LSST bands to colors for plotting.</span>
+<span class="sd">TRILEGAL_DIR : Directory for TRILEGAL and Genulens data files.</span>
+<span class="sd">ULENS_COLUMNS : Columns for ulens data (e.g., D_L, D_S, mu_rel).</span>
+<span class="sd">SOURCE_COLUMNS_BASE : Base columns for source data (logL, logTe).</span>
+<span class="sd">ROWS_PER_CHUNK : Number of rows per chunk in TRILEGAL/Genulens files.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># Standard library imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">gc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy</span>
+
+<span class="c1"># Third-party imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">chi2</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
+
+<span class="c1"># Local imports</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ulens_lsst.catalogs_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Catalog</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ulens_lsst.ulens_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">pacz_parameters</span><span class="p">,</span> <span class="n">pylima_parameters</span><span class="p">,</span> <span class="n">simulate_pacz_lightcurve</span><span class="p">,</span> <span class="n">simulate_pylima_lightcurve</span>
+
+
+<div class="viewcode-block" id="Event">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Event</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class to manage a microlensing event, including coordinates, light curves, and parameters.</span>
+
+<span class="sd">    Supports simulation of light curves using Paczynski or pyLIMA models, storage in Parquet</span>
+<span class="sd">    files, and visualization with customizable plotting options. Optimized for memory by loading</span>
+<span class="sd">    only necessary data and using pyarrow for efficient Parquet operations.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    event_id : int</span>
+<span class="sd">        Unique identifier for the event.</span>
+<span class="sd">    ra : float</span>
+<span class="sd">        Right Ascension in degrees.</span>
+<span class="sd">    dec : float</span>
+<span class="sd">        Declination in degrees.</span>
+<span class="sd">    bands : List[str]</span>
+<span class="sd">        List of filter names (e.g., [&#39;u&#39;, &#39;g&#39;, &#39;r&#39;]).</span>
+<span class="sd">    model : str</span>
+<span class="sd">        Microlensing model (&#39;Pacz&#39;, &#39;USBL&#39;, &#39;FSPL&#39;, &#39;PSPL&#39;).</span>
+<span class="sd">    system_type : str</span>
+<span class="sd">        Type of system (e.g., &#39;Planets_systems&#39;, &#39;Binary_stars&#39;).</span>
+<span class="sd">    parameters : Dict[str, Any]</span>
+<span class="sd">        Model parameters (e.g., {&#39;t0&#39;: 100, &#39;u0&#39;: 0.1}).</span>
+<span class="sd">    parallax : bool</span>
+<span class="sd">        Whether to include parallax effects.</span>
+<span class="sd">    cadence_noise : str</span>
+<span class="sd">        Source of epochs and errors (e.g., &#39;dp0&#39;, &#39;opsim_v4.3.1&#39;, &#39;ideal&#39;).</span>
+<span class="sd">    source_data : Dict[str, Any]</span>
+<span class="sd">        Source properties (e.g., {&#39;logL&#39;: 1, &#39;logTe&#39;: 1, &#39;u&#39;: 20.0}).</span>
+<span class="sd">    ulens_data : Dict[str, Any]</span>
+<span class="sd">        Microlensing parameters (e.g., {&#39;D_L&#39;: 0.5, &#39;D_S&#39;: 1, &#39;mu_rel&#39;: 0.5}).</span>
+<span class="sd">    photometry : pd.DataFrame</span>
+<span class="sd">        Photometry data with specified schema.</span>
+<span class="sd">    nearby_object : Dict[str, Any]</span>
+<span class="sd">        Data for the nearest object (e.g., objectId, ra, dec, magnitudes).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">DEFAULT_COLORS</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="s2">&quot;purple&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;g&quot;</span><span class="p">:</span> <span class="s2">&quot;green&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="s2">&quot;red&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;i&quot;</span><span class="p">:</span> <span class="s2">&quot;orange&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="s2">&quot;brown&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="s2">&quot;blue&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Y&quot;</span><span class="p">:</span> <span class="s2">&quot;blue&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">TRILEGAL_DIR</span> <span class="o">=</span> <span class="s2">&quot;../roman_rubin/chunks_TRILEGAL_GENULENS/&quot;</span>
+    <span class="n">ULENS_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;D_L&quot;</span><span class="p">,</span> <span class="s2">&quot;D_S&quot;</span><span class="p">,</span> <span class="s2">&quot;mu_rel&quot;</span><span class="p">,</span> <span class="s2">&quot;tE&quot;</span><span class="p">,</span> <span class="s2">&quot;thetaE&quot;</span><span class="p">,</span> <span class="s2">&quot;piE&quot;</span><span class="p">,</span> <span class="s2">&quot;piEN&quot;</span><span class="p">,</span> <span class="s2">&quot;piEE&quot;</span><span class="p">]</span>
+    <span class="n">SOURCE_COLUMNS_BASE</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;logL&quot;</span><span class="p">,</span> <span class="s2">&quot;logTe&quot;</span><span class="p">]</span>
+    <span class="n">ROWS_PER_CHUNK</span> <span class="o">=</span> <span class="mi">10000</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">event_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">ra</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">dec</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">bands</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">system_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">cadence_noise</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ideal&quot;</span><span class="p">,</span>
+        <span class="n">parameters</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">parallax</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">source_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ulens_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">photometry</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">photometry_schema</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">events_schema</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">DataType</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sources_catalog</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TRILEGAL&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an Event object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        event_id : int</span>
+<span class="sd">            Unique identifier for the event.</span>
+<span class="sd">        ra : float</span>
+<span class="sd">            Right Ascension in degrees.</span>
+<span class="sd">        dec : float</span>
+<span class="sd">            Declination in degrees.</span>
+<span class="sd">        bands : List[str]</span>
+<span class="sd">            List of filter names (e.g., [&#39;u&#39;, &#39;g&#39;, &#39;r&#39;]).</span>
+<span class="sd">        model : str</span>
+<span class="sd">            Microlensing model (&#39;Pacz&#39;, &#39;USBL&#39;, &#39;FSPL&#39;, &#39;PSPL&#39;).</span>
+<span class="sd">        system_type : str</span>
+<span class="sd">            Type of system (e.g., &#39;Planets_systems&#39;, &#39;Binary_stars&#39;).</span>
+<span class="sd">        cadence_noise : str, optional</span>
+<span class="sd">            Source of epochs and errors (&#39;dp0&#39;, &#39;opsim_v4.3.1&#39;, &#39;ideal&#39;) (default: &#39;ideal&#39;).</span>
+<span class="sd">        parameters : Dict[str, Any], optional</span>
+<span class="sd">            Model parameters (e.g., {&#39;t0&#39;: 100, &#39;u0&#39;: 0.1}).</span>
+<span class="sd">        parallax : bool, optional</span>
+<span class="sd">            Include parallax effects (default: False).</span>
+<span class="sd">        source_data : Dict[str, Any], optional</span>
+<span class="sd">            Source properties (e.g., {&#39;logL&#39;: 1, &#39;logTe&#39;: 1, &#39;u&#39;: 20.0}).</span>
+<span class="sd">        ulens_data : Dict[str, Any], optional</span>
+<span class="sd">            Microlensing parameters (e.g., {&#39;D_L&#39;: 0.5, &#39;D_S&#39;: 1, &#39;mu_rel&#39;: 0.5}).</span>
+<span class="sd">        photometry : pd.DataFrame, optional</span>
+<span class="sd">            Photometry data with specified columns.</span>
+<span class="sd">        photometry_schema : Dict[str, str], optional</span>
+<span class="sd">            Schema for photometry DataFrame with column dtypes.</span>
+<span class="sd">        events_schema : Dict[str, pyarrow.DataType], optional</span>
+<span class="sd">            Schema for events Parquet file.</span>
+<span class="sd">        sources_catalog : str, optional</span>
+<span class="sd">            Catalog source for source data (&#39;TRILEGAL&#39; or path to CSV) (default: &#39;TRILEGAL&#39;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">=</span> <span class="n">event_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ra</span> <span class="o">=</span> <span class="n">ra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec</span> <span class="o">=</span> <span class="n">dec</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bands</span> <span class="o">=</span> <span class="p">[</span><span class="n">band</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">system_type</span> <span class="o">=</span> <span class="n">system_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parallax</span> <span class="o">=</span> <span class="n">parallax</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cadence_noise</span> <span class="o">=</span> <span class="n">cadence_noise</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">events_schema</span> <span class="o">=</span> <span class="n">events_schema</span>
+
+        <span class="c1"># Initialize photometry with explicit dtypes</span>
+        <span class="k">if</span> <span class="n">photometry_schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">photometry_schema</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;event_id&quot;</span><span class="p">:</span> <span class="s2">&quot;int32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;band&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;ideal_mag&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;meas_mag&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;meas_mag_err&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;meas_flux&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;meas_flux_err&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;magnification&quot;</span><span class="p">:</span> <span class="s2">&quot;float32&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;injection_flag&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;measure_flag&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">photometry</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">photometry_schema</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">photometry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">photometry_schema</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">photometry_schema</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Initialize source_data and ulens_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_data</span> <span class="o">=</span> <span class="n">source_data</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_source_data</span><span class="p">(</span><span class="n">catalog</span><span class="o">=</span><span class="n">sources_catalog</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ulens_data</span> <span class="o">=</span> <span class="n">ulens_data</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_ulens_data</span><span class="p">()</span>
+
+        <span class="c1"># Initialize nearby_object</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;objectId&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;ra&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;dec&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;distance&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_source_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">catalog</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TRILEGAL&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load source data from TRILEGAL or a custom catalog for the given event_id.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        catalog : str, optional</span>
+<span class="sd">            Catalog source (&#39;TRILEGAL&#39; or path to CSV file) (default: &#39;TRILEGAL&#39;).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Dict[str, Any]</span>
+<span class="sd">            Source data including logL, logTe, and magnitudes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">bands</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span>
+        <span class="k">if</span> <span class="n">catalog</span> <span class="o">==</span> <span class="s2">&quot;TRILEGAL&quot;</span><span class="p">:</span>
+            <span class="n">chunk_id</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROWS_PER_CHUNK</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">row_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROWS_PER_CHUNK</span>
+            <span class="k">if</span> <span class="n">chunk_id</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">chunk_id</span> <span class="o">&gt;</span> <span class="mi">20</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid chunk_id: </span><span class="si">{</span><span class="n">chunk_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;logL&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s2">&quot;logTe&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">}}</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TRILEGAL_DIR</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;TRILEGAL_chunk_</span><span class="si">{</span><span class="n">chunk_id</span><span class="si">}</span><span class="s2">.csv&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;y&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="n">bands</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>
+                <span class="n">bands</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Y&quot;</span>
+        <span class="k">elif</span> <span class="n">catalog</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;event_sources_catalog.csv&quot;</span><span class="p">):</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">catalog</span>
+            <span class="n">row_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid catalog: </span><span class="si">{</span><span class="n">catalog</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">source_columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOURCE_COLUMNS_BASE</span> <span class="o">+</span> <span class="n">bands</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="n">source_columns</span><span class="p">,</span> <span class="n">skiprows</span><span class="o">=</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">row_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s2">&quot;Y&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;Y&quot;</span><span class="p">)</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+                <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;logL&quot;</span><span class="p">,</span> <span class="s2">&quot;logTe&quot;</span><span class="p">]},</span> <span class="o">**</span><span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">}}</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error loading source data for event_id </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">row_index</span><span class="si">=}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;logL&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s2">&quot;logTe&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">}}</span>
+
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_ulens_data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load ulens data from Genulens for the given event_id.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Dict[str, Any]</span>
+<span class="sd">            Ulens data including D_L, D_S, mu_rel, etc.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chunk_id</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROWS_PER_CHUNK</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">row_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROWS_PER_CHUNK</span>
+        <span class="k">if</span> <span class="n">chunk_id</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">chunk_id</span> <span class="o">&gt;</span> <span class="mi">20</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid chunk_id: </span><span class="si">{</span><span class="n">chunk_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ULENS_COLUMNS</span><span class="p">}</span>
+
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TRILEGAL_DIR</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Genulens_chunk_</span><span class="si">{</span><span class="n">chunk_id</span><span class="si">}</span><span class="s2">.csv&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ULENS_COLUMNS</span><span class="p">,</span> <span class="n">skiprows</span><span class="o">=</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">row_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error loading ulens data for event_id </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ULENS_COLUMNS</span><span class="p">}</span>
+
+<div class="viewcode-block" id="Event.simulate_ulens_parameters">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.simulate_ulens_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">simulate_ulens_parameters</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ulens_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">source_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">peak_range</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">blend</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">save</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simulate microlensing parameters for the event.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        ulens_data : Dict[str, Any], optional</span>
+<span class="sd">            Microlensing parameters; uses self.ulens_data if None.</span>
+<span class="sd">        source_data : Dict[str, Any], optional</span>
+<span class="sd">            Source properties; uses self.source_data if None.</span>
+<span class="sd">        peak_range : Tuple[float, float], optional</span>
+<span class="sd">            Time range for t0 simulation (MJD).</span>
+<span class="sd">        blend : Union[bool, float], optional</span>
+<span class="sd">            Blending fraction or True for random blending (default: False).</span>
+<span class="sd">        save : bool, optional</span>
+<span class="sd">            Save parameters to self.parameters (default: True).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Dict[str, Any]</span>
+<span class="sd">            Simulated parameters.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If model is not supported.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ulens_data</span> <span class="o">=</span> <span class="n">ulens_data</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">ulens_data</span>
+        <span class="n">source_data</span> <span class="o">=</span> <span class="n">source_data</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_data</span>
+        <span class="k">if</span> <span class="n">peak_range</span> <span class="ow">and</span> <span class="n">peak_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">2400000.5</span><span class="p">:</span>
+            <span class="n">peak_range</span> <span class="o">=</span> <span class="p">(</span><span class="n">peak_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mf">2400000.5</span><span class="p">,</span> <span class="n">peak_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">2400000.5</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">==</span> <span class="s2">&quot;Pacz&quot;</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">pacz_parameters</span><span class="p">(</span><span class="n">source_data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">,</span> <span class="n">peak_range</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;USBL&quot;</span><span class="p">,</span> <span class="s2">&quot;FSPL&quot;</span><span class="p">,</span> <span class="s2">&quot;PSPL&quot;</span><span class="p">]:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">pylima_parameters</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system_type</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">,</span>
+                <span class="n">source_data</span><span class="p">,</span>
+                <span class="n">ulens_data</span><span class="p">,</span>
+                <span class="n">peak_range</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                <span class="n">blend</span><span class="o">=</span><span class="n">blend</span><span class="p">,</span>
+                <span class="n">event_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Model </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2"> not implemented. Try: &#39;Pacz&#39;, &#39;USBL&#39;, &#39;FSPL&#39;, &#39;PSPL&#39;&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">2400000.5</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">-=</span> <span class="mf">2400000.5</span>
+        <span class="k">if</span> <span class="n">save</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">params</span>
+        <span class="k">return</span> <span class="n">params</span></div>
+
+
+<div class="viewcode-block" id="Event.simulate_lc">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.simulate_lc">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">simulate_lc</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">epochs</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]],</span>
+        <span class="n">params</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">parallax</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">num_chunks</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">processes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">save</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simulate light curves for the event.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        epochs : Union[np.ndarray, Dict[str, np.ndarray]]</span>
+<span class="sd">            Observation times per band or single array.</span>
+<span class="sd">        params : Dict[str, Any], optional</span>
+<span class="sd">            Model parameters; uses self.parameters if None.</span>
+<span class="sd">        model : str, optional</span>
+<span class="sd">            Microlensing model; uses self.model if None.</span>
+<span class="sd">        parallax : bool, optional</span>
+<span class="sd">            Include parallax; uses self.parallax if None.</span>
+<span class="sd">        num_chunks : int, optional</span>
+<span class="sd">            Number of chunks for parallel processing (default: 1).</span>
+<span class="sd">        processes : int, optional</span>
+<span class="sd">            Number of parallel processes (default: 1).</span>
+<span class="sd">        save : bool, optional</span>
+<span class="sd">            Append results to self.photometry (default: True).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        pd.DataFrame</span>
+<span class="sd">            Simulated photometry with specified columns.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If model is not valid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">params</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">model</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+        <span class="n">parallax</span> <span class="o">=</span> <span class="n">parallax</span> <span class="k">if</span> <span class="n">parallax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">parallax</span>
+        <span class="n">bands</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">epochs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">epochs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">2400000.5</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">2400000.5</span>
+        <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">epochs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">2400000.5</span><span class="p">:</span>
+                <span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">+</span> <span class="mf">2400000.5</span>
+
+        <span class="n">photometry_data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">redirect_stdout</span><span class="p">(</span><span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">model</span> <span class="o">==</span> <span class="s2">&quot;Pacz&quot;</span><span class="p">:</span>
+                <span class="n">mags</span> <span class="o">=</span> <span class="n">simulate_pacz_lightcurve</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">epochs</span><span class="p">)</span>
+                <span class="n">magnification</span> <span class="o">=</span> <span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">])</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">}</span>  <span class="c1"># Placeholder</span>
+            <span class="k">elif</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;USBL&quot;</span><span class="p">,</span> <span class="s2">&quot;FSPL&quot;</span><span class="p">,</span> <span class="s2">&quot;PSPL&quot;</span><span class="p">]:</span>
+                <span class="n">mags</span><span class="p">,</span> <span class="n">magnification</span><span class="p">,</span> <span class="n">pyLIMA_parameters</span><span class="p">,</span> <span class="n">warns</span> <span class="o">=</span> <span class="n">simulate_pylima_lightcurve</span><span class="p">(</span>
+                    <span class="n">epochs</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">parallax</span><span class="p">,</span> <span class="n">num_chunks</span><span class="p">,</span> <span class="n">processes</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pylima_parameters</span> <span class="o">=</span> <span class="n">pyLIMA_parameters</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Model </span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2"> is not valid. Try: &#39;Pacz&#39;, &#39;USBL&#39;, &#39;FSPL&#39;, &#39;PSPL&#39;&quot;</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">mag</span><span class="p">,</span> <span class="n">A</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">],</span> <span class="n">mags</span><span class="p">[</span><span class="n">band</span><span class="p">],</span> <span class="n">magnification</span><span class="p">[</span><span class="n">band</span><span class="p">]):</span>
+                    <span class="n">photometry_data</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                        <span class="s2">&quot;event_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+                        <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">t</span> <span class="o">-</span> <span class="mf">2400000.5</span><span class="p">,</span>
+                        <span class="s2">&quot;band&quot;</span><span class="p">:</span> <span class="n">band</span><span class="p">,</span>
+                        <span class="s2">&quot;ideal_mag&quot;</span><span class="p">:</span> <span class="n">mag</span><span class="p">,</span>
+                        <span class="s2">&quot;meas_mag&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                        <span class="s2">&quot;meas_mag_err&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                        <span class="s2">&quot;meas_flux&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                        <span class="s2">&quot;meas_flux_err&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                        <span class="s2">&quot;magnification&quot;</span><span class="p">:</span> <span class="n">A</span><span class="p">,</span>
+                        <span class="s2">&quot;injection_flag&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s2">&quot;measure_flag&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="p">})</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">photometry_data</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="o">.</span><span class="n">dtypes</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">save</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">,</span> <span class="n">df</span><span class="p">],</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="Event.plot">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.plot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bands</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">show_ideal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">show_measured</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">show_baseline</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">simulate_ideal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">show_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">show_nearby_object</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">survey_dates</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ax</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">plt</span><span class="o">.</span><span class="n">Axes</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">colors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mark_flagged</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">clean</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">show_times</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">show_mag_limits</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">mag_limits</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">mark_mag_limits</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">show_legend</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">y_limits</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">max_points_to_plot</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">plt</span><span class="o">.</span><span class="n">Axes</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plot light curves for the event with inverted y-axis (magnitude).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        bands : List[str], optional</span>
+<span class="sd">            Bands to plot; defaults to self.bands.</span>
+<span class="sd">        show_ideal : bool, optional</span>
+<span class="sd">            Plot ideal light curve (default: True).</span>
+<span class="sd">        show_measured : bool, optional</span>
+<span class="sd">            Plot measured light curve with error bars (default: True).</span>
+<span class="sd">        show_baseline : bool, optional</span>
+<span class="sd">            Plot baseline magnitudes (default: True).</span>
+<span class="sd">        simulate_ideal : bool, optional</span>
+<span class="sd">            Simulate ideal light curve for plotting (default: False).</span>
+<span class="sd">        show_params : Union[bool, List[str]], optional</span>
+<span class="sd">            Show model parameters; if list, specifies parameters (default: True).</span>
+<span class="sd">        show_nearby_object : bool, optional</span>
+<span class="sd">            Show nearby object data in plot legend (default: True).</span>
+<span class="sd">        survey_dates : Tuple[float, float], optional</span>
+<span class="sd">            Survey start and end dates (MJD) to mark.</span>
+<span class="sd">        ax : matplotlib.axes.Axes, optional</span>
+<span class="sd">            Axes to plot on; creates new if None.</span>
+<span class="sd">        colors : Dict[str, str], optional</span>
+<span class="sd">            Custom color mapping for bands.</span>
+<span class="sd">        mark_flagged : bool, optional</span>
+<span class="sd">            Mark flagged points (injection/measurement) (default: True).</span>
+<span class="sd">        clean : bool, optional</span>
+<span class="sd">            Plot only unflagged points within magnitude limits (default: False).</span>
+<span class="sd">        show_times : bool, optional</span>
+<span class="sd">            Show t0, t_center, and tE spans (default: True).</span>
+<span class="sd">        show_mag_limits : Union[bool, Dict[str, Dict[str, float]], optional</span>
+<span class="sd">            Show saturation and 5-sigma magnitude limits (default: False).</span>
+<span class="sd">        mag_limits : Union[bool, Dict[str, Dict[str, float]], optional</span>
+<span class="sd">            Dictionary magnitude limits (default: False).</span>
+<span class="sd">        mark_mag_limits : bool, optional</span>
+<span class="sd">            Mark points outside magnitude limits (default: False).</span>
+<span class="sd">        show_legend : bool, optional</span>
+<span class="sd">            Show legend (default: True).</span>
+<span class="sd">        y_limits : Union[bool, Tuple[float, float]], optional</span>
+<span class="sd">            Set y-axis limits; if True, uses baseline ± margins (default: False).</span>
+<span class="sd">        max_points_to_plot : int, optional</span>
+<span class="sd">            Maximum number of points to plot per band.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        matplotlib.axes.Axes</span>
+<span class="sd">            Plot axes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bands</span> <span class="o">=</span> <span class="n">bands</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="n">colors</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">DEFAULT_COLORS</span>
+        <span class="n">mag_sat</span> <span class="o">=</span> <span class="n">mark_mag_limits</span><span class="p">[</span><span class="s2">&quot;m_sat&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mark_mag_limits</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+        <span class="n">mag_5sigma</span> <span class="o">=</span> <span class="n">mark_mag_limits</span><span class="p">[</span><span class="s2">&quot;m_5sigma&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mark_mag_limits</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+        <span class="n">type_order</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="s2">&quot;black&quot;</span><span class="p">)</span>
+            <span class="n">df_band</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;band&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">band</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">max_points_to_plot</span><span class="p">)</span>
+
+            <span class="c1"># Handle magnitude limits</span>
+            <span class="n">m_5sigma</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;mag_lim&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;mag_lim&quot;</span> <span class="ow">in</span> <span class="n">df_band</span><span class="o">.</span><span class="n">columns</span> <span class="k">else</span> <span class="n">mag_5sigma</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+
+            <span class="c1"># Plot ideal light curve</span>
+            <span class="k">if</span> <span class="n">show_ideal</span> <span class="ow">and</span> <span class="s2">&quot;ideal_mag&quot;</span> <span class="ow">in</span> <span class="n">df_band</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">ideal</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[[</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;ideal_mag&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">ideal</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+                        <span class="n">ideal</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">],</span>
+                        <span class="n">ideal</span><span class="p">[</span><span class="s2">&quot;ideal_mag&quot;</span><span class="p">],</span>
+                        <span class="s2">&quot;.&quot;</span><span class="p">,</span>
+                        <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                        <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_ideal&quot;</span><span class="p">,</span>
+                        <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;ideal&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Plot measured light curve</span>
+            <span class="k">if</span> <span class="n">show_measured</span> <span class="ow">and</span> <span class="s2">&quot;meas_mag&quot;</span> <span class="ow">in</span> <span class="n">df_band</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">clean</span><span class="p">:</span>
+                    <span class="n">df_clean</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[</span>
+                        <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;injection_flag&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span> <span class="o">|</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;injection_flag&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">))</span>
+                        <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;measure_flag&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span> <span class="o">|</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;measure_flag&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+                        <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">mag_sat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">))</span>
+                        <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">m_5sigma</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="n">measured</span> <span class="o">=</span> <span class="n">df_clean</span><span class="p">[[</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;meas_mag&quot;</span><span class="p">,</span> <span class="s2">&quot;meas_mag_err&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">measured</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[[</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;meas_mag&quot;</span><span class="p">,</span> <span class="s2">&quot;meas_mag_err&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">measured</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                    <span class="n">ax</span><span class="o">.</span><span class="n">errorbar</span><span class="p">(</span>
+                        <span class="n">measured</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">],</span>
+                        <span class="n">measured</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">],</span>
+                        <span class="n">yerr</span><span class="o">=</span><span class="nb">abs</span><span class="p">(</span><span class="n">measured</span><span class="p">[</span><span class="s2">&quot;meas_mag_err&quot;</span><span class="p">]),</span>
+                        <span class="n">fmt</span><span class="o">=</span><span class="s2">&quot;o&quot;</span><span class="p">,</span>
+                        <span class="n">markersize</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                        <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                        <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_meas&quot;</span><span class="p">,</span>
+                        <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;meas&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Mark flagged points</span>
+                <span class="k">if</span> <span class="n">mark_flagged</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">flag_type</span><span class="p">,</span> <span class="n">marker</span> <span class="ow">in</span> <span class="p">[(</span><span class="s2">&quot;injection_flag&quot;</span><span class="p">,</span> <span class="s2">&quot;^&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;measure_flag&quot;</span><span class="p">,</span> <span class="s2">&quot;s&quot;</span><span class="p">)]:</span>
+                        <span class="n">df_flag</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[</span>
+                            <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="n">flag_type</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">())</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="n">flag_type</span><span class="p">]</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">flag_type</span> <span class="o">==</span> <span class="s2">&quot;injection_flag&quot;</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+                        <span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">df_flag</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                            <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+                                <span class="n">df_flag</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">],</span>
+                                <span class="n">df_flag</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">],</span>
+                                <span class="n">marker</span><span class="o">=</span><span class="n">marker</span><span class="p">,</span>
+                                <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                                <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span>
+                                <span class="n">s</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+                                <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+                                <span class="n">label</span><span class="o">=</span><span class="n">flag_type</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_flag&quot;</span> <span class="k">if</span> <span class="n">band</span> <span class="o">==</span> <span class="n">bands</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                            <span class="p">)</span>
+                            <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;other&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Mark points outside magnitude limits</span>
+                <span class="k">if</span> <span class="n">mark_mag_limits</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mark_mag_limits</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">df_bad</span> <span class="o">=</span> <span class="n">df_band</span><span class="p">[</span>
+                        <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">mag_sat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">))</span>
+                        <span class="o">|</span> <span class="p">(</span><span class="n">df_band</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">m_5sigma</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">df_bad</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+                            <span class="n">df_bad</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">],</span>
+                            <span class="n">df_bad</span><span class="p">[</span><span class="s2">&quot;meas_mag&quot;</span><span class="p">],</span>
+                            <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;o&quot;</span><span class="p">,</span>
+                            <span class="n">color</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span>
+                            <span class="n">s</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+                            <span class="n">label</span><span class="o">=</span><span class="s2">&quot;off_limits&quot;</span> <span class="k">if</span> <span class="n">band</span> <span class="o">==</span> <span class="n">bands</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;other&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Plot baseline</span>
+            <span class="k">if</span> <span class="n">show_baseline</span> <span class="ow">and</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span>
+                    <span class="n">y</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">band</span><span class="p">],</span>
+                    <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;--&quot;</span><span class="p">,</span>
+                    <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                    <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_base&quot;</span><span class="p">,</span>
+                    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;base&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Plot magnitude limits</span>
+            <span class="k">if</span> <span class="n">show_mag_limits</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">show_mag_limits</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">limit</span><span class="p">,</span> <span class="n">style</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">[</span>
+                    <span class="p">(</span><span class="n">show_mag_limits</span><span class="p">[</span><span class="s2">&quot;m_sat&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">),</span> <span class="s2">&quot;dotted&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_sat&quot;</span><span class="p">),</span>
+                    <span class="p">(</span><span class="n">show_mag_limits</span><span class="p">[</span><span class="s2">&quot;m_5sigma&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">),</span> <span class="s2">&quot;dashdot&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_5sigma&quot;</span><span class="p">),</span>
+                <span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span>
+                            <span class="n">y</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+                            <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+                            <span class="n">linestyle</span><span class="o">=</span><span class="n">style</span><span class="p">,</span>
+                            <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                            <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span>
+                            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+            <span class="c1"># Simulate ideal light curve</span>
+            <span class="k">if</span> <span class="n">simulate_ideal</span><span class="p">:</span>
+                <span class="n">cadence</span> <span class="o">=</span> <span class="mf">0.5</span>
+                <span class="n">epochs</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="n">band</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">]),</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">]),</span> <span class="n">cadence</span><span class="p">)</span> <span class="o">+</span> <span class="mf">2400000.5</span>
+                    <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span>
+                <span class="p">}</span>
+                <span class="n">params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">2400000.5</span><span class="p">:</span>
+                    <span class="n">params</span><span class="p">[</span><span class="s2">&quot;t0&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">2400000.5</span>
+                <span class="n">mags</span><span class="p">,</span> <span class="n">magnification</span><span class="p">,</span> <span class="n">pyLIMA_parameters</span><span class="p">,</span> <span class="n">warns</span> <span class="o">=</span> <span class="n">simulate_pylima_lightcurve</span><span class="p">(</span>
+                    <span class="n">epochs</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parallax</span>
+                <span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+                    <span class="n">epochs</span><span class="p">[</span><span class="n">band</span><span class="p">]</span> <span class="o">-</span> <span class="mf">2400000.5</span><span class="p">,</span>
+                    <span class="n">mags</span><span class="p">[</span><span class="n">band</span><span class="p">],</span>
+                    <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">_theo&quot;</span><span class="p">,</span>
+                    <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;theo&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Plot survey dates</span>
+        <span class="k">if</span> <span class="n">survey_dates</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">survey_dates</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">survey_dates</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;survey_dates&quot;</span><span class="p">)</span>
+            <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;other&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Plot time markers</span>
+        <span class="k">if</span> <span class="n">show_times</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;pylima_parameters&quot;</span><span class="p">):</span>
+            <span class="n">t0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pylima_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;t0&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="o">-</span> <span class="mf">2400000.5</span>
+            <span class="n">t_center</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pylima_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;t_center&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="o">-</span> <span class="mf">2400000.5</span>
+            <span class="n">tE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pylima_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tE&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">t0</span><span class="p">):</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">t0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$t_0$&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">t_center</span><span class="p">):</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">t_center</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;:&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$t_</span><span class="si">{center}</span><span class="s2">$&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">t0</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">tE</span><span class="p">):</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">axvspan</span><span class="p">(</span><span class="n">t0</span> <span class="o">-</span> <span class="n">tE</span><span class="p">,</span> <span class="n">t0</span> <span class="o">+</span> <span class="n">tE</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;$t_0 \pm t_E$&quot;</span><span class="p">)</span>
+            <span class="n">type_order</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;other&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Display parameters</span>
+        <span class="k">if</span> <span class="n">show_params</span><span class="p">:</span>
+            <span class="n">default_params</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tE&quot;</span><span class="p">,</span> <span class="s2">&quot;u0&quot;</span><span class="p">,</span> <span class="s2">&quot;t0&quot;</span><span class="p">]</span>
+            <span class="n">selected_params</span> <span class="o">=</span> <span class="n">show_params</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">show_params</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="n">default_params</span>
+            <span class="n">param_lines</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;Model: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;System Type: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">system_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">selected_params</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">param</span><span class="p">]</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-2</span><span class="p">:</span>
+                            <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">param</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">val</span><span class="si">:</span><span class="s2">.5e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">param</span> <span class="o">==</span> <span class="s2">&quot;tE&quot;</span><span class="p">:</span>
+                            <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">param</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">val</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> days&quot;</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">param</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">val</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                        <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">param</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">show_nearby_object</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="p">:</span>
+                <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span>
+                <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Nearest source data:&quot;</span><span class="p">)</span>
+                <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; Distance: </span><span class="si">{</span><span class="n">ns</span><span class="p">[</span><span class="s1">&#39;distance&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> arcsec&quot;</span><span class="p">)</span>
+                <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="s1">&#39;band&#39;</span><span class="si">:</span><span class="s2">^4</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;mag&#39;</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;FWHM&#39;</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">:</span>
+                    <span class="n">mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">ns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+                    <span class="n">fwhm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">ns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">mag</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">fwhm</span><span class="p">):</span>
+                        <span class="n">param_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">band</span><span class="si">:</span><span class="s2">^4</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">mag</span><span class="p">)</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">fwhm</span><span class="p">)</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">param_text</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">param_lines</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+                <span class="mf">1.02</span><span class="p">,</span>
+                <span class="mf">0.99</span><span class="p">,</span>
+                <span class="n">param_text</span><span class="p">,</span>
+                <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+                <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+                <span class="n">verticalalignment</span><span class="o">=</span><span class="s2">&quot;top&quot;</span><span class="p">,</span>
+                <span class="n">bbox</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">boxstyle</span><span class="o">=</span><span class="s2">&quot;round&quot;</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Set axes properties</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Time (MJD)&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Magnitude&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">invert_yaxis</span><span class="p">()</span>
+        <span class="n">baseline_values</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">band</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span> <span class="k">if</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">y_limits</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">y_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">y_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">y_limits</span> <span class="ow">and</span> <span class="n">baseline_values</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">baseline_values</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">baseline_values</span><span class="p">)</span> <span class="o">-</span> <span class="mi">7</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Handle legend</span>
+        <span class="k">if</span> <span class="n">show_legend</span><span class="p">:</span>
+            <span class="n">handles</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_legend_handles_labels</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">handles</span><span class="p">:</span>
+                <span class="n">band_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span>
+                <span class="n">type_order</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">type_order</span><span class="p">)</span>
+                <span class="n">grouped</span> <span class="o">=</span> <span class="p">{</span><span class="n">typ</span><span class="p">:</span> <span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">band_order</span><span class="p">}</span> <span class="k">for</span> <span class="n">typ</span> <span class="ow">in</span> <span class="n">type_order</span> <span class="k">if</span> <span class="n">typ</span> <span class="o">!=</span> <span class="s2">&quot;other&quot;</span><span class="p">}</span>
+                <span class="n">others</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">h</span><span class="p">,</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">handles</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="s2">&quot;_&quot;</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+                        <span class="n">band</span><span class="p">,</span> <span class="n">typ</span> <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">typ</span> <span class="ow">in</span> <span class="n">grouped</span> <span class="ow">and</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">grouped</span><span class="p">[</span><span class="n">typ</span><span class="p">]:</span>
+                            <span class="n">grouped</span><span class="p">[</span><span class="n">typ</span><span class="p">][</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">others</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">h</span><span class="p">,</span> <span class="n">l</span><span class="p">))</span>
+
+                <span class="n">ordered_handles</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">ordered_labels</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">band_order</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">typ</span> <span class="ow">in</span> <span class="n">type_order</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">typ</span> <span class="o">!=</span> <span class="s2">&quot;other&quot;</span> <span class="ow">and</span> <span class="n">grouped</span><span class="p">[</span><span class="n">typ</span><span class="p">][</span><span class="n">band</span><span class="p">]:</span>
+                            <span class="n">h</span><span class="p">,</span> <span class="n">l</span> <span class="o">=</span> <span class="n">grouped</span><span class="p">[</span><span class="n">typ</span><span class="p">][</span><span class="n">band</span><span class="p">]</span>
+                            <span class="n">ordered_handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
+                            <span class="n">ordered_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+                <span class="n">ordered_handles</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">h</span> <span class="k">for</span> <span class="n">h</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">others</span><span class="p">)</span>
+                <span class="n">ordered_labels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">l</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">others</span><span class="p">)</span>
+
+                <span class="n">ncol</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">band_order</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">others</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">type_order</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">type_order</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span>
+                    <span class="n">ordered_handles</span><span class="p">,</span>
+                    <span class="n">ordered_labels</span><span class="p">,</span>
+                    <span class="n">fontsize</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+                    <span class="n">ncol</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">ncol</span><span class="p">),</span>
+                    <span class="n">loc</span><span class="o">=</span><span class="s2">&quot;upper center&quot;</span><span class="p">,</span>
+                    <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.1</span><span class="p">),</span>
+                    <span class="n">frameon</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ax</span></div>
+
+
+<div class="viewcode-block" id="Event.to_parquet">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.to_parquet">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_parquet</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">photometry_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">events_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">main_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;.&quot;</span><span class="p">,</span>
+        <span class="n">photometry_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;overwrite&quot;</span><span class="p">,</span>
+        <span class="n">events_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;overwrite&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save event data and photometry to Parquet files using Catalog.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        photometry_path : str</span>
+<span class="sd">            Path to photometry Parquet file.</span>
+<span class="sd">        events_path : str</span>
+<span class="sd">            Path to events Parquet file.</span>
+<span class="sd">        main_path : str, optional</span>
+<span class="sd">            Main directory for output files (default: &#39;.&#39;).</span>
+<span class="sd">        photometry_mode : str, optional</span>
+<span class="sd">            Mode for photometry file (&#39;append&#39; or &#39;overwrite&#39;) (default: &#39;overwrite&#39;).</span>
+<span class="sd">        events_mode : str, optional</span>
+<span class="sd">            Mode for events file (&#39;append&#39; or &#39;overwrite&#39;) (default: &#39;overwrite&#39;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;event_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;event_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;event_id&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;int32&quot;</span><span class="p">)</span>
+            <span class="n">photometry_table</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">,</span> <span class="n">preserve_index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">photometry_schema</span> <span class="o">=</span> <span class="n">photometry_table</span><span class="o">.</span><span class="n">schema</span>
+            <span class="n">photometry_catalog</span> <span class="o">=</span> <span class="n">Catalog</span><span class="p">(</span><span class="n">photometry_path</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">photometry_schema</span><span class="p">)</span>
+            <span class="n">photometry_catalog</span><span class="o">.</span><span class="n">add_rows</span><span class="p">(</span><span class="n">photometry_table</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">(),</span> <span class="n">mode</span><span class="o">=</span><span class="n">photometry_mode</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">photometry_schema</span><span class="p">)</span>
+
+
+        <span class="n">row</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;event_id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_id</span><span class="p">,</span>
+            <span class="s2">&quot;ra&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span>
+            <span class="s2">&quot;dec&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span>
+            <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+            <span class="s2">&quot;system_type&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">system_type</span><span class="p">,</span>
+            <span class="s2">&quot;points&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">),</span>
+            <span class="s2">&quot;logL&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;logL&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;logTe&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;logTe&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;D_L&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ulens_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;D_L&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;D_S&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ulens_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;D_S&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;mu_rel&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ulens_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mu_rel&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;nearby_object_ra&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ra&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;nearby_object_dec&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dec&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;nearby_object_objId&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;objectId&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;nearby_object_distance&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;distance&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;cadence_noise&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cadence_noise</span><span class="p">,</span>
+            <span class="s2">&quot;peak_time&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;t0&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;nearby_object_mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;nearby_object_fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nearby_object</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;param_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">!=</span> <span class="s2">&quot;Pacz&quot;</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;pylima_parameters&quot;</span><span class="p">):</span>
+            <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="sa">f</span><span class="s2">&quot;param-pylima_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pylima_parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+        <span class="n">event_schema</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">events_schema</span> <span class="ow">or</span> <span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span><span class="n">row</span><span class="p">]))</span><span class="o">.</span><span class="n">schema</span>
+        <span class="n">event_catalog</span> <span class="o">=</span> <span class="n">Catalog</span><span class="p">(</span><span class="n">events_path</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">event_schema</span><span class="p">)</span>
+        
+        <span class="n">event_catalog</span><span class="o">.</span><span class="n">add_rows</span><span class="p">([</span><span class="n">row</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="n">events_mode</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">event_schema</span><span class="p">)</span>
+
+        <span class="k">del</span> <span class="n">row</span><span class="p">,</span> <span class="n">event_catalog</span>
+        <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Event.from_parquet">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.from_parquet">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_parquet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">event_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">photometry_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">events_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Event&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load an event from Parquet files by event_id.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        event_id : int</span>
+<span class="sd">            ID of the event to load.</span>
+<span class="sd">        photometry_path : str</span>
+<span class="sd">            Path to photometry Parquet file.</span>
+<span class="sd">        events_path : str</span>
+<span class="sd">            Path to events Parquet file.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Event</span>
+<span class="sd">            Event instance populated with loaded data.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        FileNotFoundError</span>
+<span class="sd">            If Parquet files do not exist.</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If event_id is not found in Parquet files.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">photometry_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Photometry file </span><span class="si">{</span><span class="n">photometry_path</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">events_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Events file </span><span class="si">{</span><span class="n">events_path</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+
+        <span class="n">photometry_table</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">photometry_path</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s2">&quot;event_id&quot;</span><span class="p">,</span> <span class="s2">&quot;=&quot;</span><span class="p">,</span> <span class="n">event_id</span><span class="p">)])</span>
+        <span class="n">photometry_df</span> <span class="o">=</span> <span class="n">photometry_table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">photometry_df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No photometry data found for event_id </span><span class="si">{</span><span class="n">event_id</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="n">events_table</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">events_path</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s2">&quot;event_id&quot;</span><span class="p">,</span> <span class="s2">&quot;=&quot;</span><span class="p">,</span> <span class="n">event_id</span><span class="p">)])</span>
+        <span class="n">events_df</span> <span class="o">=</span> <span class="n">events_table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">events_df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No event data found for event_id </span><span class="si">{</span><span class="n">event_id</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="n">event_row</span> <span class="o">=</span> <span class="n">events_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">event_id</span><span class="o">=</span><span class="n">event_row</span><span class="p">[</span><span class="s2">&quot;event_id&quot;</span><span class="p">],</span>
+            <span class="n">ra</span><span class="o">=</span><span class="n">event_row</span><span class="p">[</span><span class="s2">&quot;ra&quot;</span><span class="p">],</span>
+            <span class="n">dec</span><span class="o">=</span><span class="n">event_row</span><span class="p">[</span><span class="s2">&quot;dec&quot;</span><span class="p">],</span>
+            <span class="n">bands</span><span class="o">=</span><span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bands&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="s2">&quot;i&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">]),</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">event_row</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">],</span>
+            <span class="n">system_type</span><span class="o">=</span><span class="n">event_row</span><span class="p">[</span><span class="s2">&quot;system_type&quot;</span><span class="p">],</span>
+            <span class="n">parallax</span><span class="o">=</span><span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;parallax&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+            <span class="n">cadence_noise</span><span class="o">=</span><span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cadence_noise&quot;</span><span class="p">,</span> <span class="s2">&quot;ideal&quot;</span><span class="p">),</span>
+            <span class="n">photometry</span><span class="o">=</span><span class="n">photometry_df</span><span class="p">,</span>
+            <span class="n">events_schema</span><span class="o">=</span><span class="p">{</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">type</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">events_table</span><span class="o">.</span><span class="n">schema</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="n">event</span><span class="o">.</span><span class="n">bands</span> <span class="o">=</span> <span class="p">[</span><span class="n">band</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">bands</span><span class="p">]</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">source_data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;logL&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;logL&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;logTe&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;logTe&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="o">**</span><span class="p">{</span><span class="n">band</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;param_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+        <span class="p">}</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">ulens_data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;D_L&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;D_L&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;D_S&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;D_S&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+            <span class="s2">&quot;mu_rel&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mu_rel&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">nearby_object</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;ra&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nearby_object_ra&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;dec&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nearby_object_dec&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;objectId&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nearby_object_objId&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">&quot;distance&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nearby_object_distance&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;nearby_object_mag_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+            <span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">event_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;nearby_object_fwhm_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span> <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">bands</span><span class="p">},</span>
+        <span class="p">}</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;param_&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">):</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">event_row</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;param_&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;param-pylima_&quot;</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">pylima_parameters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;param-pylima_&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">):</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">event_row</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;param-pylima_&quot;</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">event</span></div>
+
+
+<div class="viewcode-block" id="Event.compute_chi2">
+<a class="viewcode-back" href="../../api.html#ulens_lsst.light_curves.Event.compute_chi2">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_chi2</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">cumulative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">statistic</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="n">flux_constant</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute chi-squared (χ²), degrees of freedom (dof), and p-value per band.</span>
+<span class="sd">        </span>
+<span class="sd">        Chi-squared is defined as:</span>
+<span class="sd">        </span>
+<span class="sd">            χ² = Σ_i [(f_i - F_ref) / σ_i]^2</span>
+<span class="sd">        </span>
+<span class="sd">        where f_i is the measured flux, σ_i is the flux error, and F_ref is a reference flux</span>
+<span class="sd">        (mean, median, or constant).</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cumulative : bool, optional</span>
+<span class="sd">            Compute cumulative χ² up to each time point (default: True).</span>
+<span class="sd">        </span>
+<span class="sd">        statistic : str, optional</span>
+<span class="sd">            Method to compute F_ref: &#39;mean&#39;, &#39;median&#39;, or &#39;constant&#39; (default: &#39;mean&#39;).</span>
+<span class="sd">        </span>
+<span class="sd">        flux_constant : float, optional</span>
+<span class="sd">            Reference flux if statistic=&#39;constant&#39;.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict of str -&gt; dict</span>
+<span class="sd">            Dictionary with band as key and results as:</span>
+<span class="sd">        </span>
+<span class="sd">            If cumulative=True:</span>
+<span class="sd">        </span>
+<span class="sd">            .. code-block:: python</span>
+<span class="sd">        </span>
+<span class="sd">                {</span>
+<span class="sd">                    &#39;mjd&#39;: List[float],</span>
+<span class="sd">                    &#39;chi2&#39;: List[float],</span>
+<span class="sd">                    &#39;dof&#39;: List[int],</span>
+<span class="sd">                    &#39;p_value&#39;: List[float]</span>
+<span class="sd">                }</span>
+<span class="sd">        </span>
+<span class="sd">            If cumulative=False:</span>
+<span class="sd">        </span>
+<span class="sd">            .. code-block:: python</span>
+<span class="sd">        </span>
+<span class="sd">                {</span>
+<span class="sd">                    &#39;chi2&#39;: float,</span>
+<span class="sd">                    &#39;dof&#39;: int,</span>
+<span class="sd">                    &#39;p_value&#39;: float</span>
+<span class="sd">                }</span>
+<span class="sd">        </span>
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; event.compute_chi2(mags, errs)</span>
+<span class="sd">        12.34</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+    
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;band&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">band</span>
+            <span class="n">mjd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">][</span><span class="n">mask</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">flux</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;meas_flux&quot;</span><span class="p">][</span><span class="n">mask</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">flux_err</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">photometry</span><span class="p">[</span><span class="s2">&quot;meas_flux_err&quot;</span><span class="p">][</span><span class="n">mask</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">flux</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">sort_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">mjd</span><span class="p">)</span>
+            <span class="n">mjd</span> <span class="o">=</span> <span class="n">mjd</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+            <span class="n">flux</span> <span class="o">=</span> <span class="n">flux</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+            <span class="n">flux_err</span> <span class="o">=</span> <span class="n">flux_err</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+            <span class="n">valid_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">flux</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">flux_err</span><span class="p">)</span>
+            <span class="n">mjd</span> <span class="o">=</span> <span class="n">mjd</span><span class="p">[</span><span class="n">valid_mask</span><span class="p">]</span>
+            <span class="n">flux</span> <span class="o">=</span> <span class="n">flux</span><span class="p">[</span><span class="n">valid_mask</span><span class="p">]</span>
+            <span class="n">flux_err</span> <span class="o">=</span> <span class="n">flux_err</span><span class="p">[</span><span class="n">valid_mask</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">flux</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">get_F_ref</span><span class="p">(</span><span class="n">f</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">fe</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">statistic</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f</span> <span class="o">/</span> <span class="n">fe</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">fe</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">statistic</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">statistic</span> <span class="o">==</span> <span class="s2">&quot;constant&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">flux_constant</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;flux_constant must be provided when statistic=&#39;constant&#39;&quot;</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">flux_constant</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;statistic must be &#39;mean&#39;, &#39;median&#39;, or &#39;constant&#39;&quot;</span><span class="p">)</span>
+
+            <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="n">cumulative</span><span class="p">:</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;mjd&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;chi2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;dof&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;p_value&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">flux</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">f</span> <span class="o">=</span> <span class="n">flux</span><span class="p">[:</span><span class="n">x</span><span class="p">]</span>
+                    <span class="n">fe</span> <span class="o">=</span> <span class="n">flux_err</span><span class="p">[:</span><span class="n">x</span><span class="p">]</span>
+                    <span class="n">F_ref</span> <span class="o">=</span> <span class="n">get_F_ref</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fe</span><span class="p">)</span>
+                    <span class="n">chi2_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(((</span><span class="n">f</span> <span class="o">-</span> <span class="n">F_ref</span><span class="p">)</span> <span class="o">/</span> <span class="n">fe</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+                    <span class="n">dof</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+                    <span class="n">p_value</span> <span class="o">=</span> <span class="n">chi2</span><span class="o">.</span><span class="n">sf</span><span class="p">(</span><span class="n">chi2_val</span><span class="p">,</span> <span class="n">dof</span><span class="p">)</span>
+                    <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;mjd&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mjd</span><span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+                    <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;chi2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">chi2_val</span><span class="p">)</span>
+                    <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;dof&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dof</span><span class="p">)</span>
+                    <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">][</span><span class="s2">&quot;p_value&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p_value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">F_ref</span> <span class="o">=</span> <span class="n">get_F_ref</span><span class="p">(</span><span class="n">flux</span><span class="p">,</span> <span class="n">flux_err</span><span class="p">)</span>
+                <span class="n">chi2_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(((</span><span class="n">flux</span> <span class="o">-</span> <span class="n">F_ref</span><span class="p">)</span> <span class="o">/</span> <span class="n">flux_err</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="n">dof</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">flux</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="n">p_value</span> <span class="o">=</span> <span class="n">chi2</span><span class="o">.</span><span class="n">sf</span><span class="p">(</span><span class="n">chi2_val</span><span class="p">,</span> <span class="n">dof</span><span class="p">)</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;chi2&quot;</span><span class="p">:</span> <span class="n">chi2_val</span><span class="p">,</span> <span class="s2">&quot;dof&quot;</span><span class="p">:</span> <span class="n">dof</span><span class="p">,</span> <span class="s2">&quot;p_value&quot;</span><span class="p">:</span> <span class="n">p_value</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">results</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Karen Nowogrodzki.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

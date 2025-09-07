@@ -1,8 +1,10 @@
+.. _usage:
+
 Usage
 =====
 
 Command-Line Interface
----------------------
+-----------------------
 
 Run the pipeline via the command-line:
 
