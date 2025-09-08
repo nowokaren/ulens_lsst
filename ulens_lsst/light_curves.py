@@ -29,6 +29,7 @@ import io
 import os
 from typing import Dict, Any, Optional, List, Union, Tuple
 from copy import copy
+from pathlib import Path
 
 # Third-party imports
 import matplotlib.pyplot as plt
@@ -91,7 +92,7 @@ class Event:
         "y": "blue",
         "Y": "blue",
     }
-    TRILEGAL_DIR = "../roman_rubin/chunks_TRILEGAL_GENULENS/"
+    TRILEGAL_DIR = str(Path(__file__).parent.parent / "data" / "chunks_TRILEGAL_GENULENS")
     ULENS_COLUMNS = ["D_L", "D_S", "mu_rel", "tE", "thetaE", "piE", "piEN", "piEE"]
     SOURCE_COLUMNS_BASE = ["logL", "logTe"]
     ROWS_PER_CHUNK = 10000

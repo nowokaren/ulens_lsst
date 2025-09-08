@@ -181,7 +181,7 @@ def process_ulens_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any
             events_schema=config["events_schema"],
             sources_catalog=config["sources_catalog"],
         )
-
+        print(event.ulens_data)
         logger.info(f"Event {row['event_id']}: Simulating parameters")
         event.simulate_ulens_parameters(peak_range=config["peak_range"], blend=config["pylima_blend"])
 
