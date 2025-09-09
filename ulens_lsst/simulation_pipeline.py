@@ -36,6 +36,7 @@ from astropy.coordinates import SkyCoord
 from regions import CircleSkyRegion
 import astropy.units as u
 from dl import queryClient as qc
+from tqdm.auto import tqdm
 
 # Local imports
 from ulens_lsst.catalogs_utils import Catalog
@@ -130,7 +131,8 @@ class SimPipeline:
         if setup_dir:
             self._setup_directories(mode="new" if new else "current")
         if not from_folder:
-            shutil.copy2(config_path, os.path.join(self.output_dir, "config_file.yaml"))
+            if setup_dir:
+                shutil.copy2(config_path, os.path.join(self.output_dir, "config_file.yaml"))
         
 
     def __repr__(self) -> str:
@@ -382,8 +384,7 @@ class SimPipeline:
 
         log_level_str = self.log_config.get("log_level", "INFO").upper()
         log_level = getattr(logging, log_level_str, logging.INFO)
-        log_path = os.path.join(self.output_dir, f"pipeline_{self.new_file_index}.log")
-        self.log_config["log_name"] = f"{self.log_config.get('log_name', 'pipeline')}_{self.new_file_index}.log"
+        log_path = os.path.join(self.output_dir, f"{self.log_config["log_name"]}_{self.new_file_index}.log")
         self.logger = setup_logger(
             log_file=log_path,
             log_to_console=self.log_config.get("log_to_console", True),
@@ -721,8 +722,9 @@ class SimPipeline:
 
             self.logger.info(f"Loading AstroDataLab sources from {catalog}")
             results = []
-            for i, region in enumerate(regions):
+            for i, region in enumerate(tqdm(regions, desc = f"Loading AstroDataLab sources from {catalog}")):
                 query = sky_catalog_query(catalog, columns, [region], [final_filter], language="sql")
+                # print(query)
                 try:
                     res = qc.query(sql=query, fmt="table")
                     df = res.to_pandas()

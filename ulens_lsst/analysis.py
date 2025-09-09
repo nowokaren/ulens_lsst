@@ -42,10 +42,10 @@ from shapely.geometry import Polygon
 from tqdm.auto import tqdm
 
 # Local imports
-from light_curves import Event
-from lsst_data import Calexp, LSSTData
-from lsst_tools import LSSTTools
-from simulation_pipeline import SimPipeline
+from ulens_lsst.light_curves import Event
+from ulens_lsst.lsst_data import Calexp, LSSTData
+from ulens_lsst.lsst_tools import LSSTTools
+from ulens_lsst.simulation_pipeline import SimPipeline
 
 
 def plot_event_fov(
