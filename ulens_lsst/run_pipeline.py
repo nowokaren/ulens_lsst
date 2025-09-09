@@ -34,6 +34,7 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(description="Run the ulens_lsst microlensing simulation pipeline.")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config.yaml (default: 'config.yaml')")
+    parser.add_argument("--folder", type=str, default="test", help="name of pre existing simulation")
     parser.add_argument("--steps", type=str, default="all", help="Comma-separated steps: all, simulate, load_nearby, process_photometry, chi2 (default: 'all')")
     parser.add_argument("--new", type=bool, default=True, help="Whether to create a new run without overwrite or load current.")
     args = parser.parse_args()
@@ -43,8 +44,10 @@ def main() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
-
-    sim = SimPipeline(args.config, new=args.new)
+    if args.new:
+        sim = SimPipeline(args.config)
+    else:
+        sim = SimPipeline(from_folder=args.folder, new=args.new)
     steps = args.steps.split(",") if args.steps != "all" else ["simulate", "load_nearby", "process_photometry", "chi2"]
 
     if "simulate" in steps:
