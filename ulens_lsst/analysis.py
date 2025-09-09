@@ -95,7 +95,7 @@ def plot_event_fov(
             ax=axs[0, i],
             show_params=False,
             show_measured=True, 
-            clean=True,
+            # clean=True,
             show_ideal=False,
             simulate_ideal=True,
             mag_limits={"m_sat": sim.mag_sat, "m_5sigma": sim.mag_5sigma},
@@ -158,7 +158,7 @@ def plot_event_fov(
             axs[1, i] = fig.add_subplot(2, len(bands), len(bands) + i + 1, projection=WCS(new_cutout.wcs.getFitsMetadata()))
             ax = new_cutout.plot(ax=axs[1, i], title=f"Epoch: {round(phot_data['time'])}; inj_mag = {round(phot_data['ideal_mag'], 2)}")
             new_cutout.add_point(ax, event.ra, event.dec, r=10)
-            new_cutout.add_point(ax, event.nearby_object["ra"], event.nearby_object["dec"], c="b", r=10)
+            new_cutout.add_point(ax, event.nearby_object[band]["ra"], event.nearby_object[band]["dec"], c="b", r=10)
     red_circle = mpatches.Patch(color="red", label="Injected event")
     blue_circle = mpatches.Patch(color="blue", label="Nearby object")
     fig.legend(
@@ -181,6 +181,8 @@ def plot_event_fov(
     else:
         plt.show()
     plt.close()
+
+
 
 
 def plot_sky_map(
