@@ -4,3 +4,6 @@ pyarrow>=7.0.0
 astropy>=5.0.0
 tqdm>=4.65.0
 matplotlib>=3.5.0
+pyLIMA
+spherical_geometry
+astro-datalab

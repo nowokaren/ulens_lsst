@@ -330,6 +330,10 @@ class Event:
                 blend=blend,
                 event_id=self.event_id,
             )
+            if self.model=="FSPL":
+                params["q"] = np.nan
+                params["s"] = np.nan
+                params["alpha"] = np.nan
         else:
             raise ValueError(f"Model {self.model} not implemented. Try: 'Pacz', 'USBL', 'FSPL', 'PSPL'")
 
@@ -852,11 +856,9 @@ class Event:
 
         if self.model != "Pacz" and hasattr(self, "pylima_parameters"):
             row.update({f"param-pylima_{k}": v for k, v in self.pylima_parameters.items()})
-        event_schema = self.events_schema or pa.Table.from_pandas(pd.DataFrame([row])).schema
+        event_schema = pa.Table.from_pandas(pd.DataFrame([row])).schema
         event_catalog = Catalog(events_path, schema=event_schema)
-        
         event_catalog.add_rows([row], mode=events_mode, schema=event_schema)
-
         del row, event_catalog
         gc.collect()
 

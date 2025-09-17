@@ -594,6 +594,7 @@ class SimPipeline:
             batch_size=500,
             cleanup=True,
         )
+        print(self.temp_dir)
         self.events_catalog.combine_parquet_files(
             temp_dir=self.temp_dir,
             schema=self.events_catalog.get_schema(),

@@ -42,10 +42,10 @@ from shapely.geometry import Polygon
 from tqdm.auto import tqdm
 
 # Local imports
-from light_curves import Event
-from lsst_data import Calexp, LSSTData
-from lsst_tools import LSSTTools
-from simulation_pipeline import SimPipeline
+from ulens_lsst.light_curves import Event
+from ulens_lsst.lsst_data import Calexp, LSSTData
+from ulens_lsst.lsst_tools import LSSTTools
+from ulens_lsst.simulation_pipeline import SimPipeline
 
 
 def plot_event_fov(
@@ -158,7 +158,7 @@ def plot_event_fov(
             axs[1, i] = fig.add_subplot(2, len(bands), len(bands) + i + 1, projection=WCS(new_cutout.wcs.getFitsMetadata()))
             ax = new_cutout.plot(ax=axs[1, i], title=f"Epoch: {round(phot_data['time'])}; inj_mag = {round(phot_data['ideal_mag'], 2)}")
             new_cutout.add_point(ax, event.ra, event.dec, r=10)
-            new_cutout.add_point(ax, event.nearby_object["ra"], event.nearby_object["dec"], c="b", r=10)
+            new_cutout.add_point(ax, event.nearby_object[band]["ra"], event.nearby_object[band]["dec"], c="b", r=10)
     red_circle = mpatches.Patch(color="red", label="Injected event")
     blue_circle = mpatches.Patch(color="blue", label="Nearby object")
     fig.legend(
@@ -181,6 +181,8 @@ def plot_event_fov(
     else:
         plt.show()
     plt.close()
+
+
 
 
 def plot_sky_map(

@@ -181,29 +181,31 @@ def process_ulens_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any
             events_schema=config["events_schema"],
             sources_catalog=config["sources_catalog"],
         )
-        print(event.ulens_data)
         logger.info(f"Event {row['event_id']}: Simulating parameters")
         event.simulate_ulens_parameters(peak_range=config["peak_range"], blend=config["pylima_blend"])
-
         logger.info(f"Event {row['event_id']}: Simulating light curve")
         event.simulate_lc(epochs)
         if event.photometry.empty:
             logger.info(f"Event {row['event_id']}: Failed (empty photometry)")
             return {"event_id": event_id, "status": "failed", "error": "Empty photometry data"}
-
         logger.info(f"Event {row['event_id']}: Saving event")
         event.to_parquet(
             os.path.join(config["temp_dir"], f"temp_photometry_{event_id}.parquet"),
             os.path.join(config["temp_dir"], f"temp_data-events_{event_id}.parquet"),
         )
-                # calexp_photometry_file = os.path.join(config["temp_dir"], f"temp_calexps-photometry_{calexp_id}.parquet")
-        del event
-        gc.collect()
+
         logger.info(f"Event {row['event_id']}: Success")
         return {"event_id": event_id, "status": "success", "error": ""}
     except Exception as e:
         logger.error(f"Event {row['event_id']}: Failed with error: {str(e)}")
         return {"event_id": row["event_id"], "status": "failed", "error": traceback.format_exc()}
+    finally:
+        try:
+            del event
+
+        except NameError:
+            pass
+        import gc; gc.collect()
 
 
 def process_SNANA_ulens_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -550,6 +552,7 @@ def process_ulens_event_load_nearby_object(row: pd.Series, config: Dict[str, Any
         return {"event_id": row["event_id"], "status": "failed", "error": traceback.format_exc()}
 
 
+
 def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process a single calexp by injecting sources and measuring photometry.
@@ -648,7 +651,7 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
             "status": "failed",
             "error": f"Failed to process calexp: {err_str}\n{traceback.format_exc()}",
         }
-
+    
     logger.info(f"Calexp {calexp_id}: Measuring photometry for {len(injected_catalog)} sources")
     try:
         extraction = tools.measure_photometry(injected_exposure, injected_catalog)
@@ -692,9 +695,18 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
             "status": "failed",
             "error": f"Failed to save photometry results: {str(e)}\n{traceback.format_exc()}",
         }
+    finally:
+        try:
+            del calexp
+            del injected_exposure
+            del tools
+        except NameError:
+            pass
+        import gc; gc.collect()
     
     logger.info(f"Calexp {calexp_id}: End")
     return {"calexp_id": calexp_id, "status": "success", "error": ""}
+    
 
 def compute_chi2(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
     """
