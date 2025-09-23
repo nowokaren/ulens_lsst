@@ -41,7 +41,6 @@ from tqdm.auto import tqdm
 # Local imports
 from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
-from ulens_lsst.lsst_data import LSSTData
 from ulens_lsst.parallel_utils import ParallelProcessor
 from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry
 from ulens_lsst.region_sky import SkyRegion
@@ -94,6 +93,7 @@ class SimPipeline:
         "cte": process_cte_event,
         "ulens": process_ulens_event,
         "snana_ulens": process_SNANA_ulens_event,
+        "ulens_rubin_sim": process_ulens_event_rubin_sim,
     }
     PHOTOMETRY_PROCESSORS = {
         "synthetic": LSST_synthetic_photometry,
@@ -502,8 +502,11 @@ class SimPipeline:
         self.load_event_sources_catalog()
 
         if self.sim_type == "rubin_sim":
-            from ulens_lsst.utils import baseline_name, get_lsst_mjds_per_band
-            self.cadence_noise = baseline_name()
+            processor_name = "ulens_rubin_sim"
+            from ulens_lsst.utils import get_baseline, get_lsst_mjds_per_band
+            if self.opsim_version=="baseline":
+                self.opsim_version=get_baseline()
+            self.cadence_noise = self.opsim_version
             self.epochs = get_lsst_mjds_per_band(
                 ra=self.sky_center.get("coord", [0.5])[0] if self.sky_center["frame"] == "icrs" else SkyCoord(
                     l=self.sky_center["l"] * u.degree, b=self.sky_center["b"] * u.degree, frame="galactic"
@@ -521,6 +524,7 @@ class SimPipeline:
             self.epochs = {band: np.linspace(int(start), int(end), interval) for band in self.bands}
             self.cadence_noise = "ideal"
         elif self.sim_type == "lsst_images":
+            from ulens_lsst.lsst_data import LSSTData
             lsst_data = LSSTData(
                 ra=self.sky_center.get("coord", [0.5])[0] if self.sky_center["frame"] == "icrs" else SkyCoord(
                     l=self.sky_center["l"] * u.degree, b=self.sky_center["b"] * u.degree, frame="galactic"

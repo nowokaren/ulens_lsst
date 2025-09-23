@@ -257,7 +257,6 @@ def get_dataSlice(ra: float, dec: float, opsim: Any = None) -> Dict[str, Any]:
     if opsim is None:
         opsim = get_baseline()
 
-    # Ensure RA and Dec are scalars
     ra = float(ra)
     dec = float(dec)
 
@@ -270,12 +269,12 @@ def get_dataSlice(ra: float, dec: float, opsim: Any = None) -> Dict[str, Any]:
     return bundle.metric_values[0]
 
 
-def get_lsst_noise_for_lc(
+def get_lsst_noisy_lc(
     lc: Dict[str, Dict[str, List[float]]],
     ra: float,
     dec: float,
     opsim: str = "baseline",
-    mjd_range: Tuple[float, float] = (60849, 60849 + 3 * 365.25),
+    # mjd_range: Tuple[float, float] = (60849, 60849 + 3 * 365.25),
 ) -> Dict[str, Dict[str, List[float]]]:
     """
     Compute LSST-like photometric errors for given light curves.
@@ -291,8 +290,8 @@ def get_lsst_noise_for_lc(
         Declination of the object (degrees).
     opsim : str or Any, optional
         Rubin Sim opsim database or "baseline" (default: "baseline").
-    mjd_range : tuple of float, optional
-        MJD range to consider (default: (60849, 60849 + 3*365.25)).
+    # mjd_range : tuple of float, optional
+    #     MJD range to consider (default: (60849, 60849 + 3*365.25)).
 
     Returns
     -------
@@ -313,6 +312,7 @@ def get_lsst_noise_for_lc(
     for band in lc:
         mag_list = lc[band]["mag"]
         time_list = lc[band]["time"]
+        mjd_range = time_list[0], time_list[-1]
         time_array = np.array(time_list)
         mag_array = np.array(mag_list)
 

@@ -40,7 +40,7 @@ from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
 from ulens_lsst.lsst_data import LSSTData, Calexp
 from ulens_lsst.lsst_tools import LSSTTools
-from ulens_lsst.utils import get_nearby_objects
+from ulens_lsst.utils import get_nearby_objects, get_lsst_noisy_lc
 
 
 def process_cte_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -188,6 +188,94 @@ def process_ulens_event(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any
         if event.photometry.empty:
             logger.info(f"Event {row['event_id']}: Failed (empty photometry)")
             return {"event_id": event_id, "status": "failed", "error": "Empty photometry data"}
+        logger.info(f"Event {row['event_id']}: Saving event")
+        event.to_parquet(
+            os.path.join(config["temp_dir"], f"temp_photometry_{event_id}.parquet"),
+            os.path.join(config["temp_dir"], f"temp_data-events_{event_id}.parquet"),
+        )
+
+        logger.info(f"Event {row['event_id']}: Success")
+        return {"event_id": event_id, "status": "success", "error": ""}
+    except Exception as e:
+        logger.error(f"Event {row['event_id']}: Failed with error: {str(e)}")
+        return {"event_id": row["event_id"], "status": "failed", "error": traceback.format_exc()}
+    finally:
+        try:
+            del event
+
+        except NameError:
+            pass
+        import gc; gc.collect()
+
+
+def process_ulens_event_rubin_sim(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process a microlensing event without additional filtering.
+
+    Simulates microlensing parameters and light curves, saving results to temporary Parquet files.
+
+    Parameters
+    ----------
+    row : pd.Series
+        Input row with columns 'event_id', 'ra', 'dec', 'bands', 'model', 'system_type'.
+    config : Dict[str, Any]
+        Configuration with keys:
+        - temp_dir: Directory for temporary files.
+        - peak_range: Tuple of (start, end) MJD for simulation.
+        - epochs: Dictionary of observation times per band.
+        - cadence_noise: Source of cadence and noise ('dp0', 'dp1', 'ideal').
+        - pylima_blend: Blending parameter for pyLIMA.
+        - photometry_schema: Schema for photometry Parquet files.
+        - events_schema: Schema for events Parquet files.
+        - sources_catalog: Source catalog ('TRILEGAL' or CSV path).
+        - log_name: Logger name.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Result dictionary with 'event_id', 'status', and optional 'error'.
+    """
+    logger = logging.getLogger(config.get("log_name", "pipeline"))
+    try:
+        logger.info(f"Event {row['event_id']}: Starting")
+        event_id = row["event_id"]
+        bands = config["bands"]
+        epochs = config["epochs"]
+        cadence_noise = config["cadence_noise"]
+
+        event = Event(
+            event_id=event_id,
+            ra=row["ra"],
+            dec=row["dec"],
+            bands=bands,
+            model=row["model"],
+            system_type=row["system_type"],
+            parallax=True,
+            cadence_noise=cadence_noise,
+            photometry_schema=config["photometry_schema"],
+            events_schema=config["events_schema"],
+            sources_catalog=config["sources_catalog"],
+        )
+        logger.info(f"Event {row['event_id']}: Simulating parameters")
+        event.simulate_ulens_parameters(peak_range=config["peak_range"], blend=config["pylima_blend"])
+        logger.info(f"Event {row['event_id']}: Simulating light curve")
+        event.simulate_lc(epochs)
+        if event.photometry.empty:
+            logger.info(f"Event {row['event_id']}: Failed (empty photometry)")
+            return {"event_id": event_id, "status": "failed", "error": "Empty photometry data"}
+        
+        logger.info(f"Event {row['event_id']}: Simulating mags with rubin_sim")
+        lc={}
+        for band in event.bands:
+            lc[band]={"time": event.photometry[event.photometry["band"]==band]["time"].values, 
+                      "mag": event.photometry[event.photometry["band"]==band]["ideal_mag"].values}
+            
+        real_lc = get_lsst_noisy_lc(lc,event.ra, event.dec, event.cadence_noise)
+        
+        for band in event.bands:
+            event.photometry.loc[event.photometry["band"] == band, "meas_mag"] = real_lc[band]['mag']
+            event.photometry.loc[event.photometry["band"] == band, "meas_mag_err"] = real_lc[band]['mag_err']
+            
         logger.info(f"Event {row['event_id']}: Saving event")
         event.to_parquet(
             os.path.join(config["temp_dir"], f"temp_photometry_{event_id}.parquet"),
