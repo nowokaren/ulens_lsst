@@ -38,8 +38,11 @@ from regions import CircleSkyRegion
 # Local imports
 from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
-from ulens_lsst.lsst_data import LSSTData, Calexp
-from ulens_lsst.lsst_tools import LSSTTools
+try:
+    from ulens_lsst.lsst_data import LSSTData, Calexp
+    from ulens_lsst.lsst_tools import LSSTTools
+except:
+    pass
 from ulens_lsst.utils import get_nearby_objects, get_lsst_noisy_lc
 
 
