@@ -502,9 +502,8 @@ class SimPipeline:
         self.load_event_sources_catalog()
 
         if self.sim_type == "rubin_sim":
-            from utils import baseline_name
+            from ulens_lsst.utils import baseline_name, get_lsst_mjds_per_band
             self.cadence_noise = baseline_name()
-            from utils import get_lsst_mjds_per_band
             self.epochs = get_lsst_mjds_per_band(
                 ra=self.sky_center.get("coord", [0.5])[0] if self.sky_center["frame"] == "icrs" else SkyCoord(
                     l=self.sky_center["l"] * u.degree, b=self.sky_center["b"] * u.degree, frame="galactic"
