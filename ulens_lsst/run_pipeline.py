@@ -43,6 +43,7 @@ import argparse
 import logging
 import yaml
 import shutil
+import pandas as pd
 import os
 from ulens_lsst.simulation_pipeline import SimPipeline
 
@@ -132,6 +133,7 @@ def main() -> None:
     if "load_nearby" in steps:
         logger.info("Running load_nearby_objects...")
         sim.load_nearby_objects()
+        
     if "process_photometry" in steps:
         logger.info("Running process_synthetic_photometry...")
         sim.process_synthetic_photometry()

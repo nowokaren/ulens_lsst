@@ -23,6 +23,9 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import numpy as np
+
+import traceback
 
 
 class Catalog:
@@ -541,7 +544,7 @@ class Catalog:
                         table = self._normalize_table(table, target_schema)
                         writer.write_table(table)
                 except Exception as e:
-                    print(f"Error processing {temp_file}: {str(e)}")
+                    print(f"Error processing {temp_file}: {str(e)} - {traceback.format_exc()}")
                     continue
 
             # Cleanup temporary files

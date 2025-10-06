@@ -4,13 +4,16 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from regions import CircleSkyRegion, PolygonSkyRegion
-from lsst.sphgeom import HtmPixelization, UnitVector3d, LonLat
 from spherical_geometry.polygon import SphericalPolygon
-from lsst.daf.butler import Butler
+try:
+    from lsst.daf.butler import Butler
+    from lsst.sphgeom import HtmPixelization, UnitVector3d, LonLat
+    from lsst.geom import Angle, SpherePoint, degrees
+except:
+    pass
 import pandas as pd
 from tqdm.auto import tqdm
 from shapely.geometry import Polygon, Point
-from lsst.geom import Angle, SpherePoint, degrees
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

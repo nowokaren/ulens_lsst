@@ -29,11 +29,13 @@ import io
 import os
 from typing import Dict, Any, Optional, List, Union, Tuple
 from copy import copy
+import traceback
 from pathlib import Path
 
 # Third-party imports
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -188,26 +190,15 @@ class Event:
         self.ulens_data = ulens_data or self._load_ulens_data()
 
         # Initialize nearby_object
-        # self.nearby_object = {
-        #     "objectId": None,
-        #     "ra": None,
-        #     "dec": None,
-        #     "distance": None,
-        #     **{f"mag_{band}": np.nan for band in self.bands},
-        #     **{f"fwhm_{band}": np.nan for band in self.bands},
-        # }
         self.nearby_object = {
-            band: {
-                "ra": None,
-                "dec": None,
-                "objectId": None,
-                "distance": None,
-                "mag": np.nan,
-                "mag_err": np.nan,
-                **({"fwhm": np.nan} if sources_catalog == "TRILEGAL" else {}),  # Include fwhm only for dp0 (TRILEGAL)
-            }
-            for band in self.bands
+            "objectId": None,
+            "ra": None,
+            "dec": None,
+            "distance": None,
+            **{f"mag_{band}": np.nan for band in self.bands},
+            **{f"fwhm_{band}": np.nan for band in self.bands},
         }
+        
     
     def _load_source_data(self, catalog: str = "TRILEGAL") -> Dict[str, Any]:
         """
@@ -237,24 +228,44 @@ class Event:
                 bands[i] = "Y"
         elif catalog.endswith("event_sources_catalog.csv"):
             file_path = catalog
-            row_index = self.event_id - 1
+            row_index = self.event_id
         else:
             raise ValueError(f"Invalid catalog: {catalog}")
         source_columns = self.SOURCE_COLUMNS_BASE + bands
         if os.path.exists(file_path):
             try:
-                df = pd.read_csv(file_path, usecols=source_columns, skiprows=range(1, row_index + 1), nrows=1)
+                # Add "event_id" to usecols only for custom catalogs; use index_col accordingly
+                usecols = source_columns + (["event_id"] if catalog.endswith("event_sources_catalog.csv") else [])
+                index_col = "event_id" if catalog.endswith("event_sources_catalog.csv") else None
+                df = pd.read_csv(file_path, usecols=usecols, index_col=index_col)
                 if "Y" in df.columns:
                     df["y"] = df.pop("Y")
-                data = df.iloc[0].to_dict()
+                # Use loc for custom (label-based) and iloc for TRILEGAL (position-based)
+                if catalog == "TRILEGAL":
+                    data = df.iloc[row_index].to_dict()
+                else:
+                    data = df.loc[self.event_id].to_dict()
+                del df
                 return {**{k: data[k] for k in ["logL", "logTe"]}, **{band: data.get(band, np.nan) for band in self.bands}}
             except (KeyError, ValueError, IndexError) as e:
-                print(f"Error loading source data for event_id {self.event_id}, {row_index=}: {e}")
-        return {"logL": np.nan, "logTe": np.nan, **{band: np.nan for band in self.bands}}
+                print(f"Error loading source data for event_id {self.event_id}, {row_index=}: {traceback.format_exc()}")
+        # return {"logL": np.nan, "logTe": np.nan, **{band: np.nan for band in self.bands}}
+        # source_columns = self.SOURCE_COLUMNS_BASE + bands
+        # if os.path.exists(file_path):
+        #     try:
+        #         df = pd.read_csv(file_path, usecols=source_columns, index_col="event_id")
+        #         if "Y" in df.columns:
+        #             df["y"] = df.pop("Y")
+        #         data = df.iloc[row_index].to_dict()
+        #         del df
+        #         return {**{k: data[k] for k in ["logL", "logTe"]}, **{band: data.get(band, np.nan) for band in self.bands}}
+        #     except (KeyError, ValueError, IndexError) as e:
+        #         print(f"Error loading source data for event_id {self.event_id}, {row_index=}: {traceback.format_exc()}")
+        # return {"logL": np.nan, "logTe": np.nan, **{band: np.nan for band in self.bands}}
 
 
 
-    def _load_ulens_data(self) -> Dict[str, Any]:
+    def _load_ulens_data(self, choose_random=True) -> Dict[str, Any]:
         """
         Load ulens data from Genulens for the given event_id.
 
@@ -263,8 +274,15 @@ class Event:
         Dict[str, Any]
             Ulens data including D_L, D_S, mu_rel, etc.
         """
-        chunk_id = (self.event_id // self.ROWS_PER_CHUNK) + 1
-        row_index = self.event_id % self.ROWS_PER_CHUNK
+        random.seed(int(self.event_id))
+        if choose_random:
+            chunk_id = random.randint(1, 20)
+            row_index = random.randint(1, self.ROWS_PER_CHUNK)
+            if row_index == self.ROWS_PER_CHUNK:
+                row_index == -1
+        else:
+            chunk_id = (self.event_id // self.ROWS_PER_CHUNK) + 1
+            row_index = self.event_id % self.ROWS_PER_CHUNK
         if chunk_id < 1 or chunk_id > 20:
             print(f"Invalid chunk_id: {chunk_id}")
             return {col: np.nan for col in self.ULENS_COLUMNS}
@@ -532,9 +550,10 @@ class Event:
             # Plot measured light curve
             if show_measured and "meas_mag" in df_band.columns:
                 if clean:
+                    mark_flagged=False
                     df_clean = df_band[
-                        (df_band["injection_flag"].isna() | (df_band["injection_flag"] == 0))
-                        & (df_band["measure_flag"].isna() | (df_band["measure_flag"] == ""))
+                        ((df_band["injection_flag"] == 0))
+                        & ((df_band["measure_flag"] == ""))
                         & (df_band["meas_mag"] > mag_sat.get(band, -np.inf))
                         & (df_band["meas_mag"] < m_5sigma + 1)
                     ]
@@ -682,13 +701,14 @@ class Event:
                 ns = self.nearby_object
                 param_lines.append("")
                 param_lines.append("Nearest source data:")
-                param_lines.append(f" {'band':^4} {'mag':>6} {'FWHM':>6} {'distance':>6}")
+                param_lines.append(f"distance: {ns["distance"]}")
+                param_lines.append(f" {'band':^4} {'mag':>6} {'FWHM':>6}")
                 for band in self.bands:
-                    dist = np.round(ns[band]['distance'], 2)
-                    mag = np.round(ns[band]["mag"], 2)
-                    fwhm = np.round(ns[band]["fwhm"], 2)
-                    if not np.isnan(mag) and not np.isnan(fwhm) and not np.isnan(dist):
-                        param_lines.append(f" {band:^4} {str(mag):>6} {str(fwhm):>6} {str(dist):>6} arcsec")
+                    # dist = np.round(ns[band]['distance'], 2)
+                    mag = np.round(ns[f"mag_{band}"], 2)
+                    fwhm = np.round(ns[f"fwhm_{band}"], 2)
+                    if not np.isnan(mag) and not np.isnan(fwhm):
+                        param_lines.append(f" {band:^4} {str(mag):>6} {str(fwhm):>6}")
             param_text = "\n".join(param_lines)
             plt.text(
                 1.02,
@@ -928,26 +948,26 @@ class Event:
             "D_S": event_row.get("D_S", np.nan),
             "mu_rel": event_row.get("mu_rel", np.nan),
         }
-        # event.nearby_object = {
-        #     "ra": event_row.get("nearby_object_ra", None),
-        #     "dec": event_row.get("nearby_object_dec", None),
-        #     "objectId": event_row.get("nearby_object_objId", None),
-        #     "distance": event_row.get("nearby_object_distance", None),
-        #     **{f"mag_{band}": event_row.get(f"nearby_object_mag_{band}", np.nan) for band in event.bands},
-        #     **{f"fwhm_{band}": event_row.get(f"nearby_object_fwhm_{band}", np.nan) for band in event.bands},
-        # }
         event.nearby_object = {
-            band: {
-                "ra": event_row.get(f"nearby_object_coord_ra_{band}", np.nan),
-                "dec": event_row.get(f"nearby_object_coord_dec_{band}", np.nan),
-                "objectId": event_row.get(f"nearby_object_objId_{band}", np.nan),
-                "distance": event_row.get(f"nearby_object_distance_{band}", np.nan),
-                "mag": event_row.get(f"nearby_object_mag_{band}", np.nan),
-                "mag_err": event_row.get(f"nearby_object_mag_err_{band}", np.nan),
-                **({"fwhm": event_row.get(f"nearby_object_fwhm_{band}", np.nan)} if f"nearby_object_fwhm_{band}" in event_row else {})
-            }
-            for band in event.bands
+            "ra": event_row.get("nearby_object_ra", None),
+            "dec": event_row.get("nearby_object_dec", None),
+            "objectId": event_row.get("nearby_object_objId", None),
+            "distance": event_row.get("nearby_object_distance", None),
+            **{f"mag_{band}": event_row.get(f"nearby_object_mag_{band}", np.nan) for band in event.bands},
+            **{f"fwhm_{band}": event_row.get(f"nearby_object_fwhm_{band}", np.nan) for band in event.bands},
         }
+        # event.nearby_object = {
+        #     band: {
+        #         "ra": event_row.get(f"nearby_object_coord_ra_{band}", np.nan),
+        #         "dec": event_row.get(f"nearby_object_coord_dec_{band}", np.nan),
+        #         "objectId": event_row.get(f"nearby_object_objId_{band}", np.nan),
+        #         "distance": event_row.get(f"nearby_object_distance_{band}", np.nan),
+        #         "mag": event_row.get(f"nearby_object_mag_{band}", np.nan),
+        #         "mag_err": event_row.get(f"nearby_object_mag_err_{band}", np.nan),
+        #         **({"fwhm": event_row.get(f"nearby_object_fwhm_{band}", np.nan)} if f"nearby_object_fwhm_{band}" in event_row else {})
+        #     }
+        #     for band in event.bands
+        # }
         event.parameters = {
             key.replace("param_", ""): value for key, value in event_row.items() if key.startswith("param_") and not key.startswith("param-pylima_")
         }

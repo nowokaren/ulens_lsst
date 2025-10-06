@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,16 +10,27 @@ dependencies = [
     "pandas>=1.5.0",
     "pyarrow>=7.0.0",
     "astropy>=5.0.0",
-    "matplotlib>=3.5.0", 
-    "tqdm>=4.0.0",        
+    "matplotlib>=3.5.0",
+    "tqdm>=4.0.0",
 ]
 description = "LSST pipeline for microlensing simulations"
 readme = "README.md"
+requires-python = ">=3.12"
 authors = [{name = "Karen Nowogrodzki", email = "nowo.karen@gmail.com"}]
-# license = {text = "MIT"} 
+license = {text = "MIT"}  # Formato SPDX correcto, sin tabla obsoleta
+keywords = ["LSST", "microlensing", "astronomy", "simulation"]
+[project.urls]
+"Documentation" = "https://ulens-lsst.readthedocs.io"
+"Source" = "https://github.com/nowokaren/ulens_lsst"
+"Bug Tracker" = "https://github.com/nowokaren/ulens_lsst/issues"
 
 [project.scripts]
 ulens_lsst = "ulens_lsst.run_pipeline:main"
 
 [tool.setuptools]
-packages = ["ulens_lsst"]
+packages = ["ulens_lsst"]  # Asegúrate de que esto coincida con la estructura
+include-package-data = true
+package-dir = {"" = "."}  # Simplifica para que apunte al directorio raíz
+
+[tool.setuptools.package-data]
+"ulens_lsst" = ["data/chunks_TRILEGAL_Genulens/*", "config/*.yaml"]
