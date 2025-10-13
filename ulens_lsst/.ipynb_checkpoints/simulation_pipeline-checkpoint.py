@@ -42,7 +42,7 @@ from tqdm.auto import tqdm
 from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
 from ulens_lsst.parallel_utils import ParallelProcessor
-from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry
+from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry, process_ulens_event_rubin_sim
 from ulens_lsst.region_sky import SkyRegion
 from ulens_lsst.utils import setup_logger, get_nearby_objects, sky_catalog_query
 
@@ -236,8 +236,8 @@ class SimPipeline:
         self.max_load_calexps = config.get("lsst_images", {}).get("max_load_calexps", None)
         self.opsim_version = config.get("opsim", {}).get("opsim_version", "baseline")
         self.opsim_noise = config.get("opsim", {}).get("opsim_noise", False)
-        survey_start = config.get("lsst", {}).get("survey_start", 60849)
-        duration = config.get("lsst", {}).get("duration", 3)
+        survey_start = config.get("survey", {}).get("start", 60849)
+        duration = config.get("survey", {}).get("duration", 3)
         self.survey_dates = (survey_start, survey_start + duration * 365)
         self.peak_range = config.get("peak_range", (self.survey_dates[0] + 2 * 365, self.survey_dates[1] - 2 * 365))
         self.mag_sat = config.get("lsst", {}).get("mag_sat", {})
@@ -252,6 +252,7 @@ class SimPipeline:
         self.blend_distance = config.get("blend_distance", 0.001)
         self.log_config = config.get("logging", {})
         self.chi2_statistic = config.get("chi2_statistic", "median")
+        self.init_event_id = config.get("init_event_id", 0) 
 
         required = ["name", "n_events", "model", "system_type", "bands"]
         missing = [key for key in required if key not in config]
@@ -394,8 +395,6 @@ class SimPipeline:
         self.events_file = os.path.join(self.output_dir, f"data-events_{self.new_file_index}.parquet")
         self.photometry_file = os.path.join(self.output_dir, f"photometry_{self.new_file_index}.parquet")
         self.calexps_photometry_file = os.path.join(self.output_dir, f"calexps-photometry_{self.new_file_index}.parquet")
-        # self.results_events_summary_file = os.path.join(self.output_dir, f"processed_events_{self.new_file_index}.csv")
-        # self.results_photometry_summary_file = os.path.join(self.output_dir, f"processed_photometry_{self.new_file_index}.csv")
         self.input_path = os.path.join(self.output_dir, "temp_input_events.parquet")
 
         self.logger.info(f"Setup directories: output={self.output_dir}, temp={self.temp_dir}")
@@ -453,7 +452,7 @@ class SimPipeline:
         existing_event_files = [
             f for f in os.listdir(self.output_dir) if f.startswith("data-events_") and f.endswith(".parquet")
         ]
-        max_existing_event_id = 0
+        max_existing_event_id = self.init_event_id
         if existing_event_files:
             latest_file = max(existing_event_files, key=lambda x: int(x.split("_")[-1].split(".")[0]))
             self.logger.info(f"Found latest events file: {latest_file}")
@@ -465,9 +464,9 @@ class SimPipeline:
             except Exception as e:
                 self.logger.warning(f"Error reading event_id from {latest_file}: {str(e)}. Starting from event_id=1.")
         else:
-            self.logger.info(f"No existing data-events files in {self.output_dir}. Starting with event_id=1.")
+            self.logger.info(f"No existing data-events files in {self.output_dir}.")
 
-        self.event_ids = list(range(max_existing_event_id + 1, max_existing_event_id + self.n_events + 1))
+        self.event_ids = list(range(max_existing_event_id, max_existing_event_id + self.n_events))
         self.logger.info(f"Generated {len(self.event_ids)} event IDs: {self.event_ids[:5]}{'...' if len(self.event_ids) > 5 else ''}")
 
     def simulate_lightcurves(self, event_processor: Optional[str] = None) -> pd.DataFrame:
@@ -499,8 +498,15 @@ class SimPipeline:
             )
 
         self.events_ra, self.events_dec = self._sample_sky_positions()
-        self.load_event_sources_catalog()
-
+        
+        if self.sources_catalog != "TRILEGAL":
+            catalog_file=[]
+            while catalog_file==[] or len(pd.read_csv(os.path.join(self.output_dir, catalog_file[0])))!=self.n_events:
+                self.load_event_sources_catalog()
+                catalog_file=[file for file in os.listdir(self.output_dir) if file.endswith('event_sources_catalog.csv')]
+        else:
+            self.load_event_sources_catalog()
+            
         if self.sim_type == "rubin_sim":
             processor_name = "ulens_rubin_sim"
             from ulens_lsst.utils import get_baseline, get_lsst_mjds_per_band
@@ -623,123 +629,37 @@ class SimPipeline:
         self.logger.info("Ending simulate_lightcurves")
         return results_df
 
-    # def load_nearby_objects(self):
-    #     """
-    #     Load nearby LSST catalog objects for each event and merge them with the events DataFrame.
-    
-    #     This function:
-    #       1. Loads the existing events table from the Parquet file.
-    #       2. Queries the LSST catalog for objects near the simulation sky center.
-    #       3. Finds the closest object to each event based on RA/Dec coordinates.
-    #       4. Merges the matched objects into the events table.
-    #       5. Saves the updated table back to the Parquet file.
-    
-    #     Notes
-    #     -----
-    #     - Only executed if `self.sim_type == "lsst_images"`.
-    #     - Handles both `dp0` and `dp1` LSST data previews.
-    #     - Existing overlapping columns in `events_df` are dropped before merging.
-    
-    #     """
-    #     self.logger.info("Starting load_nearby_objects")
-    
-    #     # Skip if simulation type does not require LSST objects
-    #     if self.sim_type != "lsst_images":
-    #         self.logger.info(f"Simulation type: {self.sim_type}. Nothing to do here.")
-    #         return
-    
-    #     # --- Load events (only RA, Dec needed here) ---
-    #     events_df = pd.read_parquet(self.events_file, engine="pyarrow")
-    #     coords_events = events_df[["ra", "dec"]].values
-    
-    #     # --- Initialize LSST catalog access ---
-    #     lsst_data = LSSTData(
-    #         ra=self.sky_center["coord"][0],
-    #         dec=self.sky_center["coord"][1],
-    #         radius=self.sky_radius,
-    #         data_preview=self.data_preview,
-    #         bands=self.bands,
-    #         name=self.name
-    #     )
-    
-    #     # --- Build list of catalog columns depending on DP version ---
-    #     columns = []
-    #     if lsst_data.data_preview=='dp0':
-    #         for band in self.bands:
-    #             columns.append(f"scisql_nanojanskyToAbMag({band}_cModelFlux) AS mag_{band} ")
-    #             columns.append(f"scisql_nanojanskyToAbMagSigma({band}_cModelFlux, {band}_cModelFluxErr) AS mag_err_{band}, "
-    #                         f"{band}_fwhm AS fwhm_{band} ")
-    #     elif lsst_data.data_preview=="dp1":
-    #         for band in self.bands:
-    #             columns.append(f"{band}_cModelMag AS mag_{band}")
-    #             columns.append(f"{band}_cModelMagErr AS mag_err_{band}")
-    
-    #     # --- Query catalog objects near the sky center ---
-    #     objects_data = lsst_data.load_catalog("Object", columns=columns)
-    #     coords_objects = objects_data[["coord_ra", "coord_dec"]].values
-    
-    #     # --- Find nearest catalog object for each event ---
-    #     idx, min_dist_arcsec, nearest_coords_deg = get_nearby_objects(coords_events, coords_objects)
-    #     nearby_objects = objects_data.iloc[idx].reset_index(drop=True)
-    
-    #     # --- Rename columns to avoid collisions ---
-    #     rename_map = {
-    #         col: (
-    #             f"nearby_object_{col.split('_')[-1]}" if col.startswith("coord")
-    #             else "nearby_object_objId" if col.startswith("Object")
-    #             else f"nearby_object_{col}"
-    #         )
-    #         for col in nearby_objects.columns
-    #     }
-    #     nearby_objects = nearby_objects.rename(columns=rename_map)
-    #     nearby_objects["nearby_object_distance"] = min_dist_arcsec
-    
-    #     # --- Merge objects into events table ---
-    #     cols_to_add = nearby_objects.columns
-    #     events_df = events_df.drop(columns=[col for col in cols_to_add if col in events_df.columns], errors="ignore")
-    #     events_with_objects = pd.concat([events_df.reset_index(drop=True), nearby_objects], axis=1)
-    
-    #     # --- Save updated table ---
-    #     events_with_objects.to_parquet(self.events_file, index=False)
-    
-    #     self.logger.info("Ending load_nearby_objects")
-
     def load_nearby_objects(self):
         """
         Load nearby LSST catalog objects for each event and merge them with the events DataFrame.
-        
+    
         This function:
           1. Loads the existing events table from the Parquet file.
           2. Queries the LSST catalog for objects near the simulation sky center.
-          3. For each band, filters detectable objects (mag_{band} < mag_5sigma[band]).
-          4. Finds the closest detectable object to each event for each band.
-          5. Merges the band-specific matched objects into the events table.
-          6. Saves the updated table back to the Parquet file.
-        
+          3. Finds the closest object to each event based on RA/Dec coordinates.
+          4. Merges the matched objects into the events table.
+          5. Saves the updated table back to the Parquet file.
+    
         Notes
         -----
         - Only executed if `self.sim_type == "lsst_images"`.
         - Handles both `dp0` and `dp1` LSST data previews.
         - Existing overlapping columns in `events_df` are dropped before merging.
-        - If no detectable objects in a band, sets corresponding columns to NaN.
-        
-        Raises
-        ------
-        ValueError
-            If catalog query fails or required columns are missing.
+    
         """
         self.logger.info("Starting load_nearby_objects")
-        
+    
         # Skip if simulation type does not require LSST objects
         if self.sim_type != "lsst_images":
             self.logger.info(f"Simulation type: {self.sim_type}. Nothing to do here.")
             return
-        
+    
         # --- Load events (only RA, Dec needed here) ---
         events_df = pd.read_parquet(self.events_file, engine="pyarrow")
         coords_events = events_df[["ra", "dec"]].values
-        
+    
         # --- Initialize LSST catalog access ---
+        from ulens_lsst.lsst_data import LSSTData
         lsst_data = LSSTData(
             ra=self.sky_center["coord"][0],
             dec=self.sky_center["coord"][1],
@@ -748,103 +668,191 @@ class SimPipeline:
             bands=self.bands,
             name=self.name
         )
-        
+    
         # --- Build list of catalog columns depending on DP version ---
         columns = []
-        if lsst_data.data_preview == 'dp0':
+        if lsst_data.data_preview=='dp0':
             for band in self.bands:
-                columns.append(f"scisql_nanojanskyToAbMag({band}_cModelFlux) AS mag_{band}")
-                columns.append(f"scisql_nanojanskyToAbMagSigma({band}_cModelFlux, {band}_cModelFluxErr) AS mag_err_{band}")
-                columns.append(f"{band}_fwhm AS fwhm_{band}")
-        elif lsst_data.data_preview == "dp1":
+                columns.append(f"scisql_nanojanskyToAbMag({band}_cModelFlux) AS mag_{band} ")
+                columns.append(f"scisql_nanojanskyToAbMagSigma({band}_cModelFlux, {band}_cModelFluxErr) AS mag_err_{band}, "
+                            f"{band}_fwhm AS fwhm_{band} ")
+        elif lsst_data.data_preview=="dp1":
             for band in self.bands:
                 columns.append(f"{band}_cModelMag AS mag_{band}")
                 columns.append(f"{band}_cModelMagErr AS mag_err_{band}")
-        
+    
         # --- Query catalog objects near the sky center ---
-        try:
-            objects_data = lsst_data.load_catalog("Object", columns=columns)
-        except Exception as e:
-            self.logger.error(f"Failed to load catalog: {str(e)}")
-            raise ValueError(f"Failed to load catalog: {str(e)}")
-        
-        # Verify required columns
-        # required_cols = ["objectId", "coord_ra", "coord_dec"] + [f"mag_{band}" for band in self.bands]
-        # missing_cols = [col for col in required_cols if col not in objects_data.columns]
-        # if missing_cols:
-        #     self.logger.error(f"Missing columns in catalog data: {missing_cols}")
-        #     raise ValueError(f"Missing columns in catalog data: {missing_cols}")
-        
+        objects_data = lsst_data.load_catalog("Object", columns=columns)
         coords_objects = objects_data[["coord_ra", "coord_dec"]].values
-        
-        # --- Process per band ---
-        for band in self.bands:
-            # Filter detectable objects in this band
-            detectable = objects_data[objects_data[f'mag_{band}'] < self.mag_5sigma[band]+1].copy()
-            
-            if detectable.empty:
-                self.logger.warning(f"No detectable objects in band '{band}' (mag < {self.mag_5sigma[band]}). Setting NaN.")
-                events_df[f"nearby_object_objId_{band}"] = np.nan
-                events_df[f"nearby_object_coord_ra_{band}"] = np.nan
-                events_df[f"nearby_object_coord_dec_{band}"] = np.nan
-                events_df[f"nearby_object_mag_{band}"] = np.nan
-                events_df[f"nearby_object_mag_err_{band}"] = np.nan
-                if self.data_preview == 'dp0':
-                    events_df[f"nearby_object_fwhm_{band}"] = np.nan
-                events_df[f"nearby_object_distance_{band}"] = np.nan
-                continue
-            
-            coords_detectable = detectable[["coord_ra", "coord_dec"]].values
-            
-            # Find nearest detectable object for each event
-            idx, min_dist_arcsec, nearest_coords_deg = get_nearby_objects(coords_events, coords_detectable)
-            nearby_band = detectable.iloc[idx].reset_index(drop=True)
-            
-            # Rename columns to include band suffix
-            rename_map = {
-                'objectId': f'nearby_object_objId_{band}',
-                'coord_ra': f'nearby_object_coord_ra_{band}',
-                'coord_dec': f'nearby_object_coord_dec_{band}',
-                f'mag_{band}': f'nearby_object_mag_{band}',
-                f'mag_err_{band}': f'nearby_object_mag_err_{band}',
-            }
-            if self.data_preview == 'dp0':
-                rename_map[f'fwhm_{band}'] = f'nearby_object_fwhm_{band}'
-            
-            # Verify all expected columns exist before renaming
-            missing_rename_cols = [col for col in rename_map.keys() if col not in nearby_band.columns]
-            if missing_rename_cols:
-                self.logger.warning(f"Missing columns in detectable data for band '{band}': {missing_rename_cols}")
-                for col in missing_rename_cols:
-                    nearby_band[col] = np.nan  # Add missing columns as NaN
-            
-            nearby_band = nearby_band.rename(columns=rename_map)
-            
-            # Add distance column
-            nearby_band[f'nearby_object_distance_{band}'] = min_dist_arcsec
-            
-            # Select columns to add
-            cols_to_add = list(rename_map.values())
-            cols_to_add.append(f'nearby_object_distance_{band}')
-            
-            # Drop any existing columns to avoid duplicates
-            events_df = events_df.drop(columns=[col for col in cols_to_add if col in events_df.columns], errors="ignore")
-            
-            # Concatenate to events_df
-            try:
-                events_df = pd.concat([events_df, nearby_band[cols_to_add]], axis=1)
-            except KeyError as e:
-                self.logger.error(f"KeyError during concatenation for band '{band}': {str(e)}")
-                raise
-        
+    
+        # --- Find nearest catalog object for each event ---
+        idx, min_dist_arcsec, nearest_coords_deg = get_nearby_objects(coords_events, coords_objects)
+        nearby_objects = objects_data.iloc[idx].reset_index(drop=True)
+    
+        # --- Rename columns to avoid collisions ---
+        rename_map = {
+            col: (
+                f"nearby_object_{col.split('_')[-1]}" if col.startswith("coord")
+                else "nearby_object_objId" if col.startswith("Object")
+                else f"nearby_object_{col}"
+            )
+            for col in nearby_objects.columns
+        }
+        nearby_objects = nearby_objects.rename(columns=rename_map)
+        nearby_objects["nearby_object_distance"] = min_dist_arcsec
+    
+        # --- Merge objects into events table ---
+        cols_to_add = nearby_objects.columns
+        events_df = events_df.drop(columns=[col for col in cols_to_add if col in events_df.columns], errors="ignore")
+        events_with_objects = pd.concat([events_df.reset_index(drop=True), nearby_objects], axis=1)
+    
         # --- Save updated table ---
-        try:
-            events_df.to_parquet(self.events_file, index=False)
-        except Exception as e:
-            self.logger.error(f"Failed to save updated events table: {str(e)}")
-            raise
-        
+        events_with_objects.to_parquet(self.events_file, index=False)
+    
         self.logger.info("Ending load_nearby_objects")
+
+    # def load_nearby_objects(self):
+    #     """
+    #     Load nearby LSST catalog objects for each event and merge them with the events DataFrame.
+        
+    #     This function:
+    #       1. Loads the existing events table from the Parquet file.
+    #       2. Queries the LSST catalog for objects near the simulation sky center.
+    #       3. For each band, filters detectable objects (mag_{band} < mag_5sigma[band]).
+    #       4. Finds the closest detectable object to each event for each band.
+    #       5. Merges the band-specific matched objects into the events table.
+    #       6. Saves the updated table back to the Parquet file.
+        
+    #     Notes
+    #     -----
+    #     - Only executed if `self.sim_type == "lsst_images"`.
+    #     - Handles both `dp0` and `dp1` LSST data previews.
+    #     - Existing overlapping columns in `events_df` are dropped before merging.
+    #     - If no detectable objects in a band, sets corresponding columns to NaN.
+        
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If catalog query fails or required columns are missing.
+    #     """
+    #     self.logger.info("Starting load_nearby_objects")
+        
+    #     # Skip if simulation type does not require LSST objects
+    #     if self.sim_type != "lsst_images":
+    #         self.logger.info(f"Simulation type: {self.sim_type}. Nothing to do here.")
+    #         return
+        
+        # # --- Load events (only RA, Dec needed here) ---
+        # events_df = pd.read_parquet(self.events_file, engine="pyarrow")
+        # coords_events = events_df[["ra", "dec"]].values
+        
+        # # --- Initialize LSST catalog access ---
+        # from ulens_lsst.lsst_data import LSSTData
+        # lsst_data = LSSTData(
+        #     ra=self.sky_center["coord"][0],
+        #     dec=self.sky_center["coord"][1],
+        #     radius=self.sky_radius,
+        #     data_preview=self.data_preview,
+        #     bands=self.bands,
+        #     name=self.name
+        # )
+        
+        # # --- Build list of catalog columns depending on DP version ---
+        # columns = []
+        # if lsst_data.data_preview == 'dp0':
+        #     for band in self.bands:
+        #         columns.append(f"scisql_nanojanskyToAbMag({band}_cModelFlux) AS mag_{band}")
+        #         columns.append(f"scisql_nanojanskyToAbMagSigma({band}_cModelFlux, {band}_cModelFluxErr) AS mag_err_{band}")
+        #         columns.append(f"{band}_fwhm AS fwhm_{band}")
+        # elif lsst_data.data_preview == "dp1":
+        #     for band in self.bands:
+        #         columns.append(f"{band}_cModelMag AS mag_{band}")
+        #         columns.append(f"{band}_cModelMagErr AS mag_err_{band}")
+        
+        # # --- Query catalog objects near the sky center ---
+        # try:
+        #     objects_data = lsst_data.load_catalog("Object", columns=columns)
+        # except Exception as e:
+        #     self.logger.error(f"Failed to load catalog: {str(e)}")
+        #     raise ValueError(f"Failed to load catalog: {str(e)}")
+        
+        # # Verify required columns
+        # # required_cols = ["objectId", "coord_ra", "coord_dec"] + [f"mag_{band}" for band in self.bands]
+        # # missing_cols = [col for col in required_cols if col not in objects_data.columns]
+        # # if missing_cols:
+        # #     self.logger.error(f"Missing columns in catalog data: {missing_cols}")
+        # #     raise ValueError(f"Missing columns in catalog data: {missing_cols}")
+        
+        # coords_objects = objects_data[["coord_ra", "coord_dec"]].values
+        
+        # # --- Process per band ---
+        # for band in self.bands:
+        #     # Filter detectable objects in this band
+        #     detectable = objects_data[objects_data[f'mag_{band}'] < self.mag_5sigma[band]+1].copy()
+            
+        #     if detectable.empty:
+        #         self.logger.warning(f"No detectable objects in band '{band}' (mag < {self.mag_5sigma[band]}). Setting NaN.")
+        #         events_df[f"nearby_object_objId_{band}"] = np.nan
+        #         events_df[f"nearby_object_coord_ra_{band}"] = np.nan
+        #         events_df[f"nearby_object_coord_dec_{band}"] = np.nan
+        #         events_df[f"nearby_object_mag_{band}"] = np.nan
+        #         events_df[f"nearby_object_mag_err_{band}"] = np.nan
+        #         if self.data_preview == 'dp0':
+        #             events_df[f"nearby_object_fwhm_{band}"] = np.nan
+        #         events_df[f"nearby_object_distance_{band}"] = np.nan
+        #         continue
+            
+        #     coords_detectable = detectable[["coord_ra", "coord_dec"]].values
+            
+        #     # Find nearest detectable object for each event
+        #     idx, min_dist_arcsec, nearest_coords_deg = get_nearby_objects(coords_events, coords_detectable)
+        #     nearby_band = detectable.iloc[idx].reset_index(drop=True)
+            
+        #     # Rename columns to include band suffix
+        #     rename_map = {
+        #         'objectId': f'nearby_object_objId_{band}',
+        #         'coord_ra': f'nearby_object_coord_ra_{band}',
+        #         'coord_dec': f'nearby_object_coord_dec_{band}',
+        #         f'mag_{band}': f'nearby_object_mag_{band}',
+        #         f'mag_err_{band}': f'nearby_object_mag_err_{band}',
+        #     }
+        #     if self.data_preview == 'dp0':
+        #         rename_map[f'fwhm_{band}'] = f'nearby_object_fwhm_{band}'
+            
+        #     # Verify all expected columns exist before renaming
+        #     missing_rename_cols = [col for col in rename_map.keys() if col not in nearby_band.columns]
+        #     if missing_rename_cols:
+        #         self.logger.warning(f"Missing columns in detectable data for band '{band}': {missing_rename_cols}")
+        #         for col in missing_rename_cols:
+        #             nearby_band[col] = np.nan  # Add missing columns as NaN
+            
+        #     nearby_band = nearby_band.rename(columns=rename_map)
+            
+        #     # Add distance column
+        #     nearby_band[f'nearby_object_distance_{band}'] = min_dist_arcsec
+            
+        #     # Select columns to add
+        #     cols_to_add = list(rename_map.values())
+        #     cols_to_add.append(f'nearby_object_distance_{band}')
+            
+        #     # Drop any existing columns to avoid duplicates
+        #     events_df = events_df.drop(columns=[col for col in cols_to_add if col in events_df.columns], errors="ignore")
+            
+        #     # Concatenate to events_df
+        #     try:
+        #         events_df = pd.concat([events_df, nearby_band[cols_to_add]], axis=1)
+        #     except KeyError as e:
+        #         self.logger.error(f"KeyError during concatenation for band '{band}': {str(e)}")
+        #         raise
+        
+        # # --- Save updated table ---
+        # try:
+        #     events_df.to_parquet(self.events_file, index=False)
+        # except Exception as e:
+        #     self.logger.error(f"Failed to save updated events table: {str(e)}")
+        #     raise
+        
+        # self.logger.info("Ending load_nearby_objects")
 
 
     def load_event_sources_catalog(self) -> None:
@@ -890,7 +898,8 @@ class SimPipeline:
                 df = df.rename(columns={col: col[0] if col.endswith("mag") else col for col in df.columns})
                 df = df.rename(columns={"logl": "logL", "logte": "logTe"})
                 self.sources_catalog = os.path.join(self.output_dir, f"{self.sources_catalog}_event_sources_catalog.csv")
-                df.to_csv(self.sources_catalog, index=False)
+                df.index = range(self.init_event_id, self.init_event_id + len(df))
+                df.to_csv(self.sources_catalog, index=True, index_label="event_id")
                 self.logger.info(f"Saved sources catalog to {self.sources_catalog}")
             else:
                 self.logger.warning("No sources retrieved from AstroDataLab. Using empty catalog.")

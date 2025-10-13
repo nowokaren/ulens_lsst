@@ -5,6 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ulens_lsst"
 version = "1.0.0"
+description = "LSST pipeline for microlensing simulations"
+readme = "README.md"
+requires-python = ">=3.12"
+
+authors = [
+    { name = "Karen Nowogrodzki", email = "nowo.karen@gmail.com" }
+]
+
+license = { text = "MIT" }
+
+keywords = ["LSST", "microlensing", "astronomy", "simulation"]
+
 dependencies = [
     "numpy>=1.23.0",
     "pandas>=1.5.0",
@@ -12,13 +24,14 @@ dependencies = [
     "astropy>=5.0.0",
     "matplotlib>=3.5.0",
     "tqdm>=4.0.0",
+    "scipy>=1.9.0",
+    "photutils>=1.5.0",
+    "pyLIMA",
+    "requests>=2.25.0",
+    "astro-datalab",
+    "spherical_geometry"
 ]
-description = "LSST pipeline for microlensing simulations"
-readme = "README.md"
-requires-python = ">=3.12"
-authors = [{name = "Karen Nowogrodzki", email = "nowo.karen@gmail.com"}]
-license = {text = "MIT"}  # Formato SPDX correcto, sin tabla obsoleta
-keywords = ["LSST", "microlensing", "astronomy", "simulation"]
+
 [project.urls]
 "Documentation" = "https://ulens-lsst.readthedocs.io"
 "Source" = "https://github.com/nowokaren/ulens_lsst"
@@ -28,9 +41,9 @@ keywords = ["LSST", "microlensing", "astronomy", "simulation"]
 ulens_lsst = "ulens_lsst.run_pipeline:main"
 
 [tool.setuptools]
-packages = ["ulens_lsst"]  # Asegúrate de que esto coincida con la estructura
+packages = ["ulens_lsst"]
 include-package-data = true
-package-dir = {"" = "."}  # Simplifica para que apunte al directorio raíz
+package-dir = { "" = "." }
 
 [tool.setuptools.package-data]
 "ulens_lsst" = ["data/chunks_TRILEGAL_Genulens/*", "config/*.yaml"]

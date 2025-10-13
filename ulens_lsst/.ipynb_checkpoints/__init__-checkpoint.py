@@ -15,11 +15,9 @@ logger = logging.getLogger(__name__)
 def check_lsst_setup():
     try:
         import lsst.afw
+        logger.info("LSST stack detected.")
     except ImportError:
-        raise ImportError(
-            "LSST stack not found. Run 'setup lsst_distrib' first. "
-            "See https://ulens-lsst.readthedocs.io/en/latest/installation.html"
-        )
-    logger.info("LSST stack detected.")
+        logger.info("LSST stack NOT detected.")
+    
 
 check_lsst_setup()
