@@ -47,7 +47,7 @@ opsim:
   noise: false
   # Apply LSST noise to light curves
 sources_catalog: "AstroDataLab"
-# Source catalog: "TRILEGAL", "AstroDataLab", or path to CSV
+# Source catalog: "TRILEGAL", "AstroDataLab", "AstroDataLab_binary" or path to CSV
 TRILEGAL_Genulens_path: "data/chunks_TRILEGAL_Genulens/"
 
 # Survey and event timing

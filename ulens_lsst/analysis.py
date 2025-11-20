@@ -156,9 +156,9 @@ def plot_event_fov(
         if isinstance(new_cutout, Calexp):
             axs[1, i].remove()
             axs[1, i] = fig.add_subplot(2, len(bands), len(bands) + i + 1, projection=WCS(new_cutout.wcs.getFitsMetadata()))
-            ax = new_cutout.plot(ax=axs[1, i], title=f"Epoch: {round(phot_data['time'])}; inj_mag = {round(phot_data['ideal_mag'], 2)}")
+            ax = new_cutout.plot(ax=axs[1, i], title=f"Epoch: {round(phot_data['time'])}; inj_mag = {round(phot_data['ideal_mag'], 1)}")
             new_cutout.add_point(ax, event.ra, event.dec, r=10)
-            new_cutout.add_point(ax, event.nearby_object[band]["ra"], event.nearby_object[band]["dec"], c="b", r=10)
+            new_cutout.add_point(ax, event.nearby_object["ra"], event.nearby_object["dec"], c="b", r=10)
     red_circle = mpatches.Patch(color="red", label="Injected event")
     blue_circle = mpatches.Patch(color="blue", label="Nearby object")
     fig.legend(
@@ -253,7 +253,7 @@ def plot_sky_map(
     circle = center.directional_offset_by(np.linspace(0, 360, 200) * u.deg, radius)
 
     lsst_data = LSSTData(ra=ra0.value, dec=dec0.value, data_preview=data_preview, radius=radius.value, name=name)
-    sources = lsst_data.load_catalog("Source")
+    sources = lsst_data.load_catalog("Object")
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.plot(circle.ra.deg, circle.dec.deg, "r-", label="Injected region")

@@ -701,7 +701,7 @@ class Event:
                 ns = self.nearby_object
                 param_lines.append("")
                 param_lines.append("Nearest source data:")
-                param_lines.append(f"distance: {ns["distance"]}")
+                param_lines.append(f"distance: {ns["distance"]:.2f} arcsec")
                 param_lines.append(f" {'band':^4} {'mag':>6} {'FWHM':>6}")
                 for band in self.bands:
                     # dist = np.round(ns[band]['distance'], 2)
@@ -804,29 +804,6 @@ class Event:
             photometry_catalog = Catalog(photometry_path, schema=photometry_schema)
             photometry_catalog.add_rows(photometry_table.to_pylist(), mode=photometry_mode, schema=photometry_schema)
 
-
-        # row = {
-        #     "event_id": self.event_id,
-        #     "ra": self.ra,
-        #     "dec": self.dec,
-        #     "model": self.model,
-        #     "system_type": self.system_type,
-        #     "points": len(self.photometry),
-        #     "logL": self.source_data.get("logL", np.nan),
-        #     "logTe": self.source_data.get("logTe", np.nan),
-        #     "D_L": self.ulens_data.get("D_L", np.nan),
-        #     "D_S": self.ulens_data.get("D_S", np.nan),
-        #     "mu_rel": self.ulens_data.get("mu_rel", np.nan),
-        #     "nearby_object_ra": self.nearby_object.get("ra", None),
-        #     "nearby_object_dec": self.nearby_object.get("dec", None),
-        #     "nearby_object_objId": self.nearby_object.get("objectId", None),
-        #     "nearby_object_distance": self.nearby_object.get("distance", None),
-        #     "cadence_noise": self.cadence_noise,
-        #     "peak_time": self.parameters.get("t0", np.nan),
-        #     **{f"nearby_object_mag_{band}": self.nearby_object.get(f"mag_{band}", np.nan) for band in self.bands},
-        #     **{f"nearby_object_fwhm_{band}": self.nearby_object.get(f"fwhm_{band}", np.nan) for band in self.bands},
-        #     **{f"param_{k}": v for k, v in self.parameters.items()},
-        # }
         row = {
             "event_id": self.event_id,
             "ra": self.ra,
@@ -839,40 +816,62 @@ class Event:
             "D_L": self.ulens_data.get("D_L", np.nan),
             "D_S": self.ulens_data.get("D_S", np.nan),
             "mu_rel": self.ulens_data.get("mu_rel", np.nan),
+            "nearby_object_ra": self.nearby_object.get("ra", None),
+            "nearby_object_dec": self.nearby_object.get("dec", None),
+            "nearby_object_objId": self.nearby_object.get("objectId", None),
+            "nearby_object_distance": self.nearby_object.get("distance", None),
             "cadence_noise": self.cadence_noise,
             "peak_time": self.parameters.get("t0", np.nan),
-            **{
-                f"nearby_object_coord_ra_{band}": self.nearby_object.get(band, {}).get("ra", np.nan)
-                for band in self.bands
-            },
-            **{
-                f"nearby_object_coord_dec_{band}": self.nearby_object.get(band, {}).get("dec", np.nan)
-                for band in self.bands
-            },
-            **{
-                f"nearby_object_objId_{band}": self.nearby_object.get(band, {}).get("objectId", np.nan)
-                for band in self.bands
-            },
-            **{
-                f"nearby_object_distance_{band}": self.nearby_object.get(band, {}).get("distance", np.nan)
-                for band in self.bands
-            },
-            **{
-                f"nearby_object_mag_{band}": self.nearby_object.get(band, {}).get("mag", np.nan)
-                for band in self.bands
-            },
-            **{
-                f"nearby_object_mag_err_{band}": self.nearby_object.get(band, {}).get("mag_err", np.nan)
-                for band in self.bands
-            },
-            **(
-                {
-                    f"nearby_object_fwhm_{band}": self.nearby_object.get(band, {}).get("fwhm", np.nan)
-                    for band in self.bands
-                } if f"nearby_object_fwhm_{self.bands[0]}" in self.events_schema else {}
-            ),
+            **{f"nearby_object_mag_{band}": self.nearby_object.get(f"mag_{band}", np.nan) for band in self.bands},
+            **{f"nearby_object_fwhm_{band}": self.nearby_object.get(f"fwhm_{band}", np.nan) for band in self.bands},
             **{f"param_{k}": v for k, v in self.parameters.items()},
         }
+        # row = {
+        #     "event_id": self.event_id,
+        #     "ra": self.ra,
+        #     "dec": self.dec,
+        #     "model": self.model,
+        #     "system_type": self.system_type,
+        #     "points": len(self.photometry),
+        #     "logL": self.source_data.get("logL", np.nan),
+        #     "logTe": self.source_data.get("logTe", np.nan),
+        #     "D_L": self.ulens_data.get("D_L", np.nan),
+        #     "D_S": self.ulens_data.get("D_S", np.nan),
+        #     "mu_rel": self.ulens_data.get("mu_rel", np.nan),
+        #     "cadence_noise": self.cadence_noise,
+        #     "peak_time": self.parameters.get("t0", np.nan),
+        #     **{
+        #         f"nearby_object_coord_ra_{band}": self.nearby_object.get(band, {}).get("ra", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **{
+        #         f"nearby_object_coord_dec_{band}": self.nearby_object.get(band, {}).get("dec", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **{
+        #         f"nearby_object_objId_{band}": self.nearby_object.get(band, {}).get("objectId", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **{
+        #         f"nearby_object_distance_{band}": self.nearby_object.get(band, {}).get("distance", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **{
+        #         f"nearby_object_mag_{band}": self.nearby_object.get(band, {}).get("mag", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **{
+        #         f"nearby_object_mag_err_{band}": self.nearby_object.get(band, {}).get("mag_err", np.nan)
+        #         for band in self.bands
+        #     },
+        #     **(
+        #         {
+        #             f"nearby_object_fwhm_{band}": self.nearby_object.get(band, {}).get("fwhm", np.nan)
+        #             for band in self.bands
+        #         } if f"nearby_object_fwhm_{self.bands[0]}" in self.events_schema else {}
+        #     ),
+        #     **{f"param_{k}": v for k, v in self.parameters.items()},
+        # }
 
         if self.model != "Pacz" and hasattr(self, "pylima_parameters"):
             row.update({f"param-pylima_{k}": v for k, v in self.pylima_parameters.items()})
@@ -956,18 +955,7 @@ class Event:
             **{f"mag_{band}": event_row.get(f"nearby_object_mag_{band}", np.nan) for band in event.bands},
             **{f"fwhm_{band}": event_row.get(f"nearby_object_fwhm_{band}", np.nan) for band in event.bands},
         }
-        # event.nearby_object = {
-        #     band: {
-        #         "ra": event_row.get(f"nearby_object_coord_ra_{band}", np.nan),
-        #         "dec": event_row.get(f"nearby_object_coord_dec_{band}", np.nan),
-        #         "objectId": event_row.get(f"nearby_object_objId_{band}", np.nan),
-        #         "distance": event_row.get(f"nearby_object_distance_{band}", np.nan),
-        #         "mag": event_row.get(f"nearby_object_mag_{band}", np.nan),
-        #         "mag_err": event_row.get(f"nearby_object_mag_err_{band}", np.nan),
-        #         **({"fwhm": event_row.get(f"nearby_object_fwhm_{band}", np.nan)} if f"nearby_object_fwhm_{band}" in event_row else {})
-        #     }
-        #     for band in event.bands
-        # }
+
         event.parameters = {
             key.replace("param_", ""): value for key, value in event_row.items() if key.startswith("param_") and not key.startswith("param-pylima_")
         }
