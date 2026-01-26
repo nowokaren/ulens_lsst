@@ -29,7 +29,8 @@ dependencies = [
     "pyLIMA",
     "requests>=2.25.0",
     "astro-datalab",
-    "spherical_geometry"
+    "spherical_geometry",
+    "rubin-sim=2.3.0"
 ]
 
 [project.urls]
