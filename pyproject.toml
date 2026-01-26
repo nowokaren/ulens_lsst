@@ -30,7 +30,7 @@ dependencies = [
     "requests>=2.25.0",
     "astro-datalab",
     "spherical_geometry",
-    "rubin-sim=2.3.0"
+    "rubin-sim>=2.3.0"
 ]
 
 [project.urls]
