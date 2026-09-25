@@ -28,7 +28,7 @@ class ResolvedImageProcessing:
     compatibility: ProcessorCompatibility
 
 
-def resolve_data_release(data_release: Any = "DP2") -> Any:
+def resolve_data_release(data_release: Any = None) -> Any:
     """Return a resolved RSP ``DataReleaseConfig``.
 
     Parameters
@@ -57,6 +57,9 @@ def resolve_data_release(data_release: Any = "DP2") -> Any:
             "Resolving a Rubin data release requires the RSP "
             "'data_release_config' package."
         ) from exc
+
+    if data_release is None:
+        return get_data_release()
 
     if not isinstance(data_release, (str, DataReleaseConfig)):
         raise TypeError(
