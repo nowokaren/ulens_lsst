@@ -1,0 +1,43 @@
+{
+  "butler_collections": "LSSTComCam/DP1",
+  "butler_repo": "dp1",
+  "command_environment": {
+    "ULENS_LSST_RSP_RELEASE": null
+  },
+  "data_id": {
+    "band": "i",
+    "day_obs": 20241108,
+    "detector": 0,
+    "instrument": "LSSTComCam",
+    "physical_filter": "i_06",
+    "visit": 2024110800245
+  },
+  "dataset_type": "visit_image",
+  "design": {
+    "edge_margin_pixels": 100,
+    "injection_noise_seed": 12345,
+    "magnitudes": [
+      20.0,
+      22.0,
+      24.0
+    ],
+    "minimum_separation_pixels": 50.0,
+    "position_seed": 24680,
+    "reference_source_count": 9,
+    "source_counts": [
+      9,
+      50,
+      200,
+      500
+    ]
+  },
+  "ended_utc": "2026-09-25T03:57:41.311830+00:00",
+  "image_id": "DP1:visit_image:band=i,day_obs=20241108,detector=0,instrument=LSSTComCam,physical_filter=i_06,visit=2024110800245",
+  "python": "3.13.9",
+  "release": "DP1",
+  "rubin_stack": "gdfb3db0272+232e9e9820 \tcurrent v30_0_11_rc1 o_latest v30_0_11 setup",
+  "started_utc": "2026-09-25T03:57:33.142621+00:00",
+  "ulens_lsst_git_commit": "14c051c41e7d72bbd5caf0e15c0f66d462394856",
+  "ulens_lsst_git_dirty": true,
+  "validation_type": "global_injection_density"
+}

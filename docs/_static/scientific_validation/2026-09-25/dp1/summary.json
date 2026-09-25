@@ -1,0 +1,67 @@
+{
+  "band": "i",
+  "dataset_type": "visit_image",
+  "detector": 0,
+  "image_id": "DP1:visit_image:band=i,day_obs=20241108,detector=0,instrument=LSSTComCam,physical_filter=i_06,visit=2024110800245",
+  "levels": [
+    {
+      "fractional_change_from_low_density_max_abs": 0.0,
+      "fractional_change_from_low_density_median": 0.0,
+      "fractional_residual_mad": 0.007124999238211093,
+      "fractional_residual_median": 0.0005294397311764009,
+      "injection_density_per_arcmin2": 0.049559936297264344,
+      "injection_failure_count": 0,
+      "level_runtime_seconds": 0.4245528129977174,
+      "measurement_flag_fraction": 0.0,
+      "n_injected_sources": 9,
+      "n_reference_sources": 9,
+      "pull_median": 0.001850093270061066,
+      "pull_std": 0.45136606982924943
+    },
+    {
+      "fractional_change_from_low_density_max_abs": 0.0,
+      "fractional_change_from_low_density_median": 0.0,
+      "fractional_residual_mad": 0.007124999238211093,
+      "fractional_residual_median": 0.0005294397311764009,
+      "injection_density_per_arcmin2": 0.27533297942924634,
+      "injection_failure_count": 0,
+      "level_runtime_seconds": 0.6962311380193569,
+      "measurement_flag_fraction": 0.0,
+      "n_injected_sources": 50,
+      "n_reference_sources": 9,
+      "pull_median": 0.001850093270061066,
+      "pull_std": 0.45136606982924943
+    },
+    {
+      "fractional_change_from_low_density_max_abs": 0.0,
+      "fractional_change_from_low_density_median": 0.0,
+      "fractional_residual_mad": 0.007124999238211093,
+      "fractional_residual_median": 0.0005294397311764009,
+      "injection_density_per_arcmin2": 1.1013319177169854,
+      "injection_failure_count": 0,
+      "level_runtime_seconds": 1.7095273500017356,
+      "measurement_flag_fraction": 0.0,
+      "n_injected_sources": 200,
+      "n_reference_sources": 9,
+      "pull_median": 0.001850093270061066,
+      "pull_std": 0.45136606982924943
+    },
+    {
+      "fractional_change_from_low_density_max_abs": 0.0,
+      "fractional_change_from_low_density_median": 0.0,
+      "fractional_residual_mad": 0.007124999238211093,
+      "fractional_residual_median": 0.0005294397311764009,
+      "injection_density_per_arcmin2": 2.7533297942924637,
+      "injection_failure_count": 0,
+      "level_runtime_seconds": 3.0798329660028685,
+      "measurement_flag_fraction": 0.0,
+      "n_injected_sources": 500,
+      "n_reference_sources": 9,
+      "pull_median": 0.001850093270061066,
+      "pull_std": 0.45136606982924943
+    }
+  ],
+  "n_rows": 36,
+  "release": "DP1",
+  "visit": 2024110800245
+}

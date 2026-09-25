@@ -1,0 +1,43 @@
+{
+  "butler_collections": "2.2i/runs/DP0.2",
+  "butler_repo": "dp02",
+  "command_environment": {
+    "ULENS_LSST_RSP_RELEASE": null
+  },
+  "data_id": {
+    "band": "u",
+    "detector": 2,
+    "instrument": "LSSTCam-imSim",
+    "physical_filter": "u_sim_1.4",
+    "visit": 1168293,
+    "visit_system": 1
+  },
+  "dataset_type": "calexp",
+  "design": {
+    "edge_margin_pixels": 100,
+    "injection_noise_seed": 12345,
+    "magnitudes": [
+      20.0,
+      22.0,
+      24.0
+    ],
+    "minimum_separation_pixels": 50.0,
+    "position_seed": 24680,
+    "reference_source_count": 9,
+    "source_counts": [
+      9,
+      50,
+      200,
+      500
+    ]
+  },
+  "ended_utc": "2026-09-25T03:57:06.131901+00:00",
+  "image_id": "DP0.2:calexp:band=u,detector=2,instrument=LSSTCam-imSim,physical_filter=u_sim_1.4,visit=1168293,visit_system=1",
+  "python": "3.13.9",
+  "release": "DP0.2",
+  "rubin_stack": "gdfb3db0272+232e9e9820 \tcurrent v30_0_11_rc1 o_latest v30_0_11 setup",
+  "started_utc": "2026-09-25T03:56:58.316131+00:00",
+  "ulens_lsst_git_commit": "14c051c41e7d72bbd5caf0e15c0f66d462394856",
+  "ulens_lsst_git_dirty": true,
+  "validation_type": "global_injection_density"
+}

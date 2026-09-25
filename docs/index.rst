@@ -16,6 +16,7 @@ flexible experimentation, publication, and installation via pip.
    usage
    image_processing
    process_workflow
+   scientific_validation_status
    scientific_validation
    api
    tutorials
