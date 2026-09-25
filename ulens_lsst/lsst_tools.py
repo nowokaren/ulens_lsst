@@ -272,6 +272,7 @@ class LSSTTools:
         self,
         injected_exposure: afwImage.ExposureF,
         injected_catalog: afwTable.SourceCatalog,
+        include_native_diagnostics: bool = False,
     ) -> pd.DataFrame:
         """
         Measure photometry for injected sources in the exposure.
@@ -411,6 +412,14 @@ class LSSTTools:
         extraction_table["injection_flag"] = table["injection_flag"]
         extraction_table["measure_flag"] = table["measure_flag"]
         extraction_table["magnification"] = table["magnification"]
+
+        # Scientific validation may need the native Rubin flag columns rather
+        # than only the compact legacy ``measure_flag`` summary.  Keep these
+        # opt-in so the production compatibility product is unchanged.
+        if include_native_diagnostics:
+            for column_name in table.colnames:
+                if "flag" in column_name.lower():
+                    extraction_table[f"native_{column_name}"] = table[column_name]
     
         return extraction_table
 
