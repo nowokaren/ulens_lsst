@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 import yaml
 
 from ulens_lsst.image_processing_run import process_work_unit
+from ulens_lsst.image_processing_run import _write_photometry_atomic
 from ulens_lsst.image_processors import ImageProcessResult
 from ulens_lsst.work_units import build_work_unit_rows
 
@@ -140,6 +141,15 @@ class TestProcessWorkUnit(unittest.TestCase):
 
         self.assertEqual(result["state"], "completed")
         self.assertNotIn("skipped", result)
+
+    def test_atomic_write_failure_leaves_no_final_part(self):
+        output = self.run_dir / "photometry" / "part-interrupted.parquet"
+        table = pa.table({"event_id": [1], "image_id": ["image-a"]})
+        with patch("ulens_lsst.image_processing_run.os.replace", side_effect=RuntimeError("interrupted")):
+            with self.assertRaisesRegex(RuntimeError, "interrupted"):
+                _write_photometry_atomic(table, output)
+        self.assertFalse(output.exists())
+        self.assertEqual(list(output.parent.glob(f".{output.name}.*.tmp")), [])
 
 
 if __name__ == "__main__":

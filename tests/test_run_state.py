@@ -1,6 +1,7 @@
 """Offline tests for operational state, restart planning, and finalization."""
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
@@ -84,6 +85,21 @@ class TestRunState(unittest.TestCase):
         result = finalize(self.run_dir)
         self.assertFalse(result["complete"])
         self.assertEqual(result["duplicate_scientific_keys"], 1)
+
+    def test_missing_stale_and_corrupt_work_are_restartable(self):
+        first, second = [row["work_unit_id"] for row in self.rows]
+        old = (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat()
+        self.write_status(first, "running", started_at=old)
+        self.write_status(second, "completed", n_images=1, n_photometry_rows=1)
+        (self.run_dir / "photometry" / f"part-{second}.parquet").write_bytes(b"not parquet")
+        self.assertEqual(classify_work_unit(self.run_dir, first), "stale")
+        self.assertEqual(classify_work_unit(self.run_dir, second), "invalid")
+        self.assertEqual(pending_work_units(self.run_dir), [first, second])
+
+    def test_finalize_reports_incomplete_campaign(self):
+        result = finalize(self.run_dir)
+        self.assertFalse(result["complete"])
+        self.assertEqual(len(result["incomplete_work_units"]), 2)
 
 
 if __name__ == "__main__":
