@@ -70,3 +70,25 @@ The intended campaign flow is:
 
 The first processor will perform in-memory injection and forced photometry.
 Injected exposures are not persistent products.
+
+RSP integration tests
+---------------------
+
+Rubin-dependent tests must run in an initialized Science Pipelines shell. The
+repository path may be prepended, but the existing EUPS ``PYTHONPATH`` must be
+preserved::
+
+   setup lsst_distrib
+   export PYTHONPATH="$PWD:$PYTHONPATH"
+
+The real-data integration test is configured by the environment because
+accessible Butler collections vary between RSP deployments. For example::
+
+   export ULENS_LSST_RSP_RELEASE=DP1
+   export ULENS_LSST_RSP_COLLECTION=LSSTComCam/DP1
+   export ULENS_LSST_RSP_IMAGE_DATASET=visit_image
+   pytest -q tests/test_rsp_integration.py
+
+These variables are test inputs, not a release mapping for the RAC path. The
+test queries one DatasetRef, loads one exposure, and checks WCS, PSF,
+PhotoCalib, mask, and variance availability.
