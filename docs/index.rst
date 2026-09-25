@@ -14,6 +14,7 @@ flexible experimentation, publication, and installation via pip.
    installation
    data
    usage
+   image_processing
    api
    tutorials
    credits

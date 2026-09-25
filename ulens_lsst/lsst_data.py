@@ -48,6 +48,8 @@ from lsst.rsp import get_tap_service
 from lsst.sphgeom import Region
 from lsst.afw.geom import makeSkyWcs
 
+from .image_context import ImageContext
+
 
 def submit_with_retries(
     service, query: str, max_retries: int = 50, base_delay: float = 1
@@ -275,6 +277,7 @@ class LSSTData:
         bands: List[str] = ["u", "g", "r", "i", "z", "y"],
         name: Optional[str] = None,
         main_path: str = "./runs",
+        release_config: Optional[Any] = None,
     ):
         """
         Initialize the LSSTData class.
@@ -295,29 +298,45 @@ class LSSTData:
             Name of the run; defaults to timestamp if None.
         main_path : str, optional
             Base directory for storing run data (default: './runs').
+        release_config : DataReleaseConfig, optional
+            Resolved RSP release configuration. When supplied, the new image
+            access path uses its Butler repository, collection, visit table,
+            and image dataset configuration. When omitted, the legacy
+            ``data_preview`` compatibility path is used.
 
         Raises
         ------
         ValueError
             If tap_schema or butler_config is invalid.
         """
-        if data_preview not in self.DATA_PREVIEW_SETTINGS:
-            raise ValueError(
-                f"Invalid data_preview: {data_preview}. Choose from {list(self.DATA_PREVIEW_SETTINGS.keys())}"
-            )
+        self.release_config = release_config
+        if release_config is None:
+            if data_preview not in self.DATA_PREVIEW_SETTINGS:
+                raise ValueError(
+                    f"Invalid data_preview: {data_preview}. Choose from {list(self.DATA_PREVIEW_SETTINGS.keys())}"
+                )
 
-        self.collection = self.DATA_PREVIEW_SETTINGS[data_preview]["collection"]
-        self.butler_config = self.DATA_PREVIEW_SETTINGS[data_preview]["butler_config"]
-        self.tap_schema = self.DATA_PREVIEW_SETTINGS[data_preview]["tap_schema"]
+            self.collection = self.DATA_PREVIEW_SETTINGS[data_preview]["collection"]
+            self.butler_config = self.DATA_PREVIEW_SETTINGS[data_preview]["butler_config"]
+            self.tap_schema = self.DATA_PREVIEW_SETTINGS[data_preview]["tap_schema"]
 
-        if self.tap_schema not in self.AVAILABLE_SCHEMAS["tap_schemas"]:
-            raise ValueError(
-                f"Invalid tap_schema: {self.tap_schema}. Choose from {list(self.AVAILABLE_SCHEMAS['tap_schemas'].keys())}"
-            )
-        if self.butler_config not in ["dp02", "dp02-remote", "dp1"]:
-            print(
-                f"Warning: butler_config {self.butler_config} not in known aliases (dp02, dp02-remote, dp1)."
-            )
+            if self.tap_schema not in self.AVAILABLE_SCHEMAS["tap_schemas"]:
+                raise ValueError(
+                    f"Invalid tap_schema: {self.tap_schema}. Choose from {list(self.AVAILABLE_SCHEMAS['tap_schemas'].keys())}"
+                )
+            if self.butler_config not in ["dp02", "dp02-remote", "dp1"]:
+                print(
+                    f"Warning: butler_config {self.butler_config} not in known aliases (dp02, dp02-remote, dp1)."
+                )
+            self.image_dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
+        else:
+            self.collection = release_config.butler_collections
+            self.butler_config = release_config.butler_repo
+            self.tap_schema = release_config.tap_visit_table.split(".", 1)[0]
+            dataset_types = tuple(release_config.calexp_dataset_types)
+            if not dataset_types:
+                raise ValueError("The resolved release has no image dataset type.")
+            self.image_dataset_type = dataset_types[0]
 
         self.name = name or time.strftime("%Y%m%d_%H%M%S")
         self.main_path = os.path.join(main_path, self.name)
@@ -327,14 +346,17 @@ class LSSTData:
         self.dec = float(dec)
         self.radius = float(radius)
         self.bands = bands
-        self.data_preview = data_preview
+        self.data_preview = data_preview if release_config is None else None
+        self.data_release = release_config.name if release_config is not None else None
         self.area = np.pi * self.radius**2
         self.catalogs = {}
         self.calexps_data = None
         self.datasetRefs = None
+        self.image_contexts = None
         self.epochs = None
         self.survey_dates = None
-        self.butler = Butler(self.butler_config, collections=self.collection)
+        butler_kwargs = {} if self.collection is None else {"collections": self.collection}
+        self.butler = Butler(self.butler_config, **butler_kwargs)
         self._setup_region()
 
     def _setup_region(self) -> None:
@@ -562,14 +584,140 @@ class LSSTData:
             If neither visit/detector nor dataset_ref is provided.
         """
         if dataset_ref is not None:
-            data_id = {"visit": dataset_ref.dataId["visit"], "detector": dataset_ref.dataId["detector"]}
+            if self.release_config is None:
+                data_id = {
+                    "visit": dataset_ref.dataId["visit"],
+                    "detector": dataset_ref.dataId["detector"],
+                }
+            else:
+                data_id = {
+                    key: dataset_ref.dataId[key]
+                    for key in set(self.release_config.calexp_data_id_keys.values())
+                }
         elif visit is not None and detector is not None:
-            data_id = {"visit": visit, "detector": detector}
+            if self.release_config is None:
+                data_id = {"visit": visit, "detector": detector}
+            else:
+                data_id = self.release_config.calexp_data_id(visit, detector)
         else:
             raise ValueError("Must provide either visit and detector or dataset_ref.")
 
-        print(f"Loading calexp for visit={data_id['visit']}, detector={data_id['detector']}...")
+        print(f"Loading image for data ID {data_id}...")
         return Calexp.from_lsstdata(self, data_id)
+
+    def select_image_contexts(
+        self,
+        bands: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+    ) -> List[ImageContext]:
+        """Select generic image contexts using the resolved RSP configuration.
+
+        The query uses the visit table, column aliases, and image data-ID
+        convention supplied by ``DataReleaseConfig``. It is intentionally a
+        separate method from the legacy ``calexp_catalog`` implementation.
+        """
+        if self.release_config is None:
+            raise RuntimeError(
+                "select_image_contexts requires a resolved DataReleaseConfig; "
+                "the data_preview path is retained only for compatibility."
+            )
+
+        selected_bands = bands or self.bands
+        visit_columns = self.release_config.visit_columns
+        band_column = visit_columns["band"]
+        top = f"TOP {int(limit)} " if limit is not None else ""
+        band_values = ", ".join(repr(band) for band in selected_bands)
+        query = (
+            f"SELECT {top}{self.release_config.visit_select(alias='vd')} "
+            f"FROM {self.release_config.tap_visit_table} AS vd "
+            "WHERE "
+            f"CONTAINS(POINT('ICRS', vd.{self.release_config.tap_ra}, "
+            f"vd.{self.release_config.tap_dec}), "
+            f"CIRCLE('ICRS', {self.ra}, {self.dec}, {self.radius})) = 1 "
+            f"AND vd.{band_column} IN ({band_values})"
+        )
+
+        service = get_tap_service("tap")
+        job = submit_with_retries(service, query)
+        job.run()
+        job.wait(phases=["COMPLETED", "ERROR"])
+        if job.phase == "ERROR":
+            job.raise_if_error()
+
+        rows = job.fetch_result().to_table()
+        contexts = []
+        for row in rows:
+            visit = int(row["visitId"])
+            detector = int(row["detector"])
+            contexts.append(
+                ImageContext.from_release(
+                    self.release_config,
+                    visit,
+                    detector,
+                    band=str(row["band"]),
+                    mjd=float(row["expMidptMJD"]),
+                    seeing=float(row["seeing"]),
+                    limiting_depth=float(row["magLim"]),
+                )
+            )
+
+        self.image_contexts = contexts
+        return contexts
+
+    def image_context(
+        self,
+        visit: int,
+        detector: int,
+        *,
+        band: Optional[str] = None,
+        mjd: Optional[float] = None,
+        seeing: Optional[float] = None,
+        limiting_depth: Optional[float] = None,
+    ) -> ImageContext:
+        """Create a generic image context from the resolved release.
+
+        This method is available only on the resolved-release path. The
+        legacy ``data_preview`` path intentionally does not gain a second
+        release-resolution implementation.
+        """
+        if self.release_config is None:
+            raise RuntimeError(
+                "image_context requires a resolved DataReleaseConfig; "
+                "the data_preview path is retained only for compatibility."
+            )
+        return ImageContext.from_release(
+            self.release_config,
+            visit,
+            detector,
+            band=band,
+            mjd=mjd,
+            seeing=seeing,
+            limiting_depth=limiting_depth,
+        )
+
+    def load_image(self, context: ImageContext) -> "Calexp":
+        """Load one generic image described by an :class:`ImageContext`."""
+        if self.release_config is None:
+            raise RuntimeError(
+                "load_image requires a resolved DataReleaseConfig; "
+                "the data_preview path is retained only for compatibility."
+            )
+        if context.dataset_type != self.image_dataset_type:
+            raise ValueError(
+                f"Image context dataset type {context.dataset_type!r} does not "
+                f"match the configured type {self.image_dataset_type!r}."
+            )
+        return Calexp(
+            data_id=dict(context.data_id),
+            butler=self.butler,
+            release_config=self.release_config,
+            name=self.name,
+            ra=self.ra,
+            dec=self.dec,
+            radius=self.radius,
+            bands=self.bands,
+            main_path=self.main_path,
+        )
 
     def calexp_catalog(
         self, bands: Optional[List[str]] = None, n_max: Union[int, str] = None, load_mjd: bool = True
@@ -734,6 +882,7 @@ class Calexp:
         radius: float = 0.0,
         bands: Optional[List[str]] = None,
         main_path: str = ".",
+        release_config: Optional[Any] = None,
     ):
         """
         Initialize a Calexp instance.
@@ -768,13 +917,24 @@ class Calexp:
         RuntimeError
             If exposure cannot be loaded.
         """
-        data_preview = data_preview or "dp0"
-        if data_preview not in self.DATA_PREVIEW_SETTINGS:
-            data_preview = "dp0"
+        self.release_config = release_config
+        if release_config is None:
+            data_preview = data_preview or "dp0"
+            if data_preview not in self.DATA_PREVIEW_SETTINGS:
+                data_preview = "dp0"
 
-        self.collection = self.DATA_PREVIEW_SETTINGS[data_preview]["collection"]
-        self.butler_config = butler_config or self.DATA_PREVIEW_SETTINGS[data_preview]["butler_config"]
-        self.tap_schema = self.DATA_PREVIEW_SETTINGS[data_preview]["tap_schema"]
+            self.collection = self.DATA_PREVIEW_SETTINGS[data_preview]["collection"]
+            self.butler_config = butler_config or self.DATA_PREVIEW_SETTINGS[data_preview]["butler_config"]
+            self.tap_schema = self.DATA_PREVIEW_SETTINGS[data_preview]["tap_schema"]
+            self.image_dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
+        else:
+            self.collection = release_config.butler_collections
+            self.butler_config = release_config.butler_repo
+            self.tap_schema = release_config.tap_visit_table.split(".", 1)[0]
+            dataset_types = tuple(release_config.calexp_dataset_types)
+            if not dataset_types:
+                raise ValueError("The resolved release has no image dataset type.")
+            self.image_dataset_type = dataset_types[0]
         self.name = name or "default_calexp"
         self.ra = ra
         self.dec = dec
@@ -782,15 +942,15 @@ class Calexp:
         self.bands = bands or ["u", "g", "r", "i", "z", "y"]
         self.main_path = main_path
 
-        self.butler = butler or Butler(self.butler_config, collections=self.collection)
+        butler_kwargs = {} if self.collection is None else {"collections": self.collection}
+        self.butler = butler or Butler(self.butler_config, **butler_kwargs)
 
         if isinstance(data_id, afwImage.ExposureF):
             self.expF = data_id
             self.data_id = {}
         elif isinstance(data_id, dict):
             self.data_id = data_id
-            dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
-            self.expF = self.butler.get(dataset_type, **data_id)
+            self.expF = self.butler.get(self.image_dataset_type, **data_id)
         elif isinstance(data_id, str):
             self.expF = afwImage.ExposureF(data_id)
             self.data_id = {}
@@ -825,6 +985,7 @@ class Calexp:
             butler=lsstdata_obj.butler,
             butler_config=lsstdata_obj.butler_config,
             data_preview=lsstdata_obj.data_preview,
+            release_config=lsstdata_obj.release_config,
             name=lsstdata_obj.name,
             ra=lsstdata_obj.ra,
             dec=lsstdata_obj.dec,
