@@ -36,7 +36,6 @@ import yaml
 from astropy.coordinates import SkyCoord
 from regions import CircleSkyRegion
 import astropy.units as u
-from dl import queryClient as qc
 from tqdm.auto import tqdm
 
 # Local imports
@@ -971,6 +970,16 @@ class SimPipeline:
             If the catalog source is invalid or query fails.
         """
         if self.sources_catalog != "TRILEGAL":
+            try:
+                from dl import queryClient as qc
+            except ImportError as exc:
+                raise ImportError(
+                    "AstroDataLab source catalogs require the optional "
+                    "'dl' package. Use sources_catalog='TRILEGAL' or install "
+                    "the AstroDataLab client before calling "
+                    "load_event_sources_catalog()."
+                ) from exc
+
             columns = ["ra", "dec", "logl", "logte", "umag", "gmag", "rmag", "imag", "zmag", "ymag", "gc", "label"]
             catalog = "lsst_sim.simdr2" + ("_binary" if self.sources_catalog.endswith("binary") else "")
             regions = [(ra, dec, 0.02) for ra, dec in zip(self.events_ra, self.events_dec)]
