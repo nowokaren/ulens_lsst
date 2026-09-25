@@ -6,14 +6,22 @@ the installed ``DataReleaseConfig``.
 """
 
 import os
+import json
+from pathlib import Path
+import tempfile
 import unittest
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import yaml
 
 try:
     from data_release_config import get_data_release
     from ulens_lsst.image_context import ImageContext
     from ulens_lsst.image_processors import get_image_processor
+    from ulens_lsst.image_processing_run import process_work_unit
     from ulens_lsst.lsst_data import LSSTData
+    from ulens_lsst.work_units import build_work_unit_rows
 except ImportError:  # pragma: no cover - depends on the RSP environment
     get_data_release = None
 
@@ -137,6 +145,62 @@ class TestRspImageAccess(unittest.TestCase):
         self.assertEqual(result.status, "success")
         self.assertEqual(len(product), 1)
         self.assertIn("meas_flux", product.colnames)
+
+    def test_process_work_unit_on_real_image(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory)
+            (run_dir / "events").mkdir()
+            image_data_id = {
+                key: self.ref.dataId[key]
+                for key in self.ref.datasetType.dimensions.names
+            }
+            image_id = f"{self.release.name}:{self.release.calexp_dataset_types[0]}:integration"
+            pq.write_table(
+                pa.Table.from_pylist(
+                    [{
+                        "image_id": image_id,
+                        "dataset_type": self.release.calexp_dataset_types[0],
+                        "data_id": json.dumps(image_data_id, sort_keys=True),
+                        "visit": int(image_data_id["visit"]),
+                        "detector": int(image_data_id["detector"]),
+                        "band": str(image_data_id["band"]),
+                        "mjd": 0.0,
+                    }]
+                ),
+                run_dir / "images.parquet",
+            )
+            work_unit = build_work_unit_rows([image_id])[0]
+            pq.write_table(
+                pa.Table.from_pylist([work_unit]), run_dir / "work_units.parquet"
+            )
+            pq.write_table(
+                pa.Table.from_pylist([{
+                    "event_id": 1,
+                    "time": 0.0,
+                    "band": str(image_data_id["band"]),
+                    "ideal_mag": 22.0,
+                    "magnification": 1.0,
+                }]),
+                run_dir / "photometry_1.parquet",
+            )
+            pq.write_table(
+                pa.Table.from_pylist([{"event_id": 1, "ra": 0.0, "dec": 0.0}]),
+                run_dir / "events" / "part-000.parquet",
+            )
+            with (run_dir / "config_file.yaml").open("w") as stream:
+                yaml.safe_dump({
+                    "name": "rsp-integration",
+                    "sim_type": "lsst_images",
+                    "data_release": self.release.name,
+                    "image_processor": "injection_forced_photometry",
+                    "bands": [str(image_data_id["band"])],
+                }, stream)
+
+            result = process_work_unit(run_dir, work_unit["work_unit_id"])
+            output = run_dir / "photometry" / f"part-{work_unit['work_unit_id']}.parquet"
+            self.assertEqual(result["state"], "completed")
+            self.assertTrue(output.exists())
+            self.assertEqual(pq.read_table(output).num_rows, 1)
 
 
 if __name__ == "__main__":
