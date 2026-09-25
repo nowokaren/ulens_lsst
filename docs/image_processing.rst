@@ -81,17 +81,22 @@ preserved::
    setup lsst_distrib
    export PYTHONPATH="$PWD:$PYTHONPATH"
 
-The real-data integration test is configured by the environment because
-accessible Butler collections vary between RSP deployments. For example::
+The real-data integration test selects the installed release profile from the
+environment. For example::
 
    export ULENS_LSST_RSP_RELEASE=DP1
-   export ULENS_LSST_RSP_COLLECTION=LSSTComCam/DP1
-   export ULENS_LSST_RSP_IMAGE_DATASET=visit_image
    pytest -q tests/test_rsp_integration.py
 
-These variables are test inputs, not a release mapping for the RAC path. The
-test queries one DatasetRef, loads one exposure, and checks WCS, PSF,
-PhotoCalib, mask, and variance availability.
+The same command can validate DP0.2::
+
+   export ULENS_LSST_RSP_RELEASE=DP0.2
+   pytest -q tests/test_rsp_integration.py
+
+The test obtains the Butler repository, collection, image dataset type, TAP
+metadata, and data-ID conventions from the installed ``DataReleaseConfig``.
+It queries one DatasetRef, loads one exposure, and checks WCS, PSF, PhotoCalib,
+mask, and variance availability. A bounded dimension-first fallback is used
+for registries where an unconstrained DatasetRef query is too broad.
 
 Release validation status
 -------------------------

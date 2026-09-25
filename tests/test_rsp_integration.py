@@ -1,14 +1,12 @@
 """Integration tests for an accessible Rubin Science Pipelines repository.
 
-These tests are skipped unless the caller supplies a compatible Butler profile
-through environment variables.  The values are intentionally not part of
-ulens_lsst's release configuration.
+These tests are skipped unless the caller selects an accessible release
+through ``ULENS_LSST_RSP_RELEASE``. Release-specific Butler settings come from
+the installed ``DataReleaseConfig``.
 """
 
 import os
 import unittest
-from dataclasses import replace
-
 import pandas as pd
 
 try:
@@ -22,11 +20,7 @@ except ImportError:  # pragma: no cover - depends on the RSP environment
 
 RSP_READY = all(
     os.environ.get(name)
-    for name in (
-        "ULENS_LSST_RSP_RELEASE",
-        "ULENS_LSST_RSP_COLLECTION",
-        "ULENS_LSST_RSP_IMAGE_DATASET",
-    )
+    for name in ("ULENS_LSST_RSP_RELEASE",)
 )
 
 
@@ -39,28 +33,52 @@ class TestRspImageAccess(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        release = get_data_release(os.environ["ULENS_LSST_RSP_RELEASE"])
-        cls.release = replace(
-            release,
-            butler_collections=os.environ["ULENS_LSST_RSP_COLLECTION"],
-            calexp_dataset_types=(os.environ["ULENS_LSST_RSP_IMAGE_DATASET"],),
-        )
+        cls.release = get_data_release(os.environ["ULENS_LSST_RSP_RELEASE"])
         cls.data = LSSTData(
             release_config=cls.release,
             main_path=os.environ.get("ULENS_LSST_RSP_TEST_OUTPUT", "/tmp"),
         )
-        dataset_type = os.environ["ULENS_LSST_RSP_IMAGE_DATASET"]
-        cls.ref = next(
+        dataset_type = cls.release.calexp_dataset_types[0]
+        collection = cls.release.butler_collections
+        # Query dimensions first. This avoids an unbounded DatasetRef scan in
+        # large registries and uses only generic Butler concepts.
+        visit = next(
             iter(
-                cls.data.butler.registry.queryDatasets(
-                    dataset_type,
-                    collections=cls.release.butler_collections,
+                cls.data.butler.registry.queryDataIds(
+                    ["visit"],
+                    datasets=dataset_type,
+                    collections=collection,
                     where=os.environ.get("ULENS_LSST_RSP_WHERE", ""),
-                    findFirst=True,
                 )
             ),
             None,
         )
+        cls.ref = None
+        if visit is not None:
+            visit_id = int(visit["visit"])
+            data_id = next(
+                iter(
+                    cls.data.butler.registry.queryDataIds(
+                        ["visit", "detector"],
+                        datasets=dataset_type,
+                        collections=collection,
+                        where=f"visit={visit_id}",
+                    )
+                ),
+                None,
+            )
+            if data_id is not None:
+                cls.ref = next(
+                    iter(
+                        cls.data.butler.registry.queryDatasets(
+                            dataset_type,
+                            collections=collection,
+                            dataId=data_id,
+                            findFirst=True,
+                        )
+                    ),
+                    None,
+                )
         if cls.ref is None:
             raise unittest.SkipTest("configured RSP collection has no image DatasetRef")
 
