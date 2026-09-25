@@ -36,9 +36,12 @@ blend_distance: 0.001
 # Simulation type and data source
 sim_type: "lsst_images"
 # Simulation type: "lsst_images", "rubin_sim", "ideal"
+# New release-aware PREPARE path (set both values in an RSP environment):
+# data_release: "<release name supplied by the RSP environment>"
+# image_processor: "injection_forced_photometry"
 lsst_images:
   data_preview: "dp0"
-  # Data preview: "dp0", "dp1"
+  # Temporary compatibility setting for existing DP0/DP1 runs.
   max_load_calexps: null
   # Maximum number of calexps to load (null for all)
 opsim:

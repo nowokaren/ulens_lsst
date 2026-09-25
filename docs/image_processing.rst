@@ -25,10 +25,22 @@ For the new path, resolve the release before constructing ``LSSTData``:
    from data_release_config import get_data_release
    from ulens_lsst.lsst_data import LSSTData
 
-   release = get_data_release("DP0.2")
+   release_name = config["data_release"]
+   release = get_data_release(release_name)
    data = LSSTData(..., release_config=release)
    contexts = data.select_image_contexts(limit=10)
    image = data.load_image(contexts[0])
+
+In the YAML run configuration, ``data_release`` is the selected release name
+resolved by RSP and ``image_processor`` selects the image operation:
+
+.. code-block:: yaml
+
+   data_release: "<release name supplied by the RSP environment>"
+   image_processor: "injection_forced_photometry"
+
+The placeholder above is intentional. ``ulens_lsst`` does not define a
+permanent RAC release or duplicate the RSP release table.
 
 An ``ImageContext`` describes one image without loading its pixels. It records
 the deterministic ``image_id``, the resolved dataset type, the Butler data ID,

@@ -22,6 +22,7 @@ SKY_DISTRIBUTIONS : Dictionary mapping sky distribution types to their sampling 
 
 # Standard library imports
 import logging
+import json
 import os
 import shutil
 from typing import Dict, Any, Optional, List, Tuple, Callable
@@ -44,6 +45,7 @@ from ulens_lsst.light_curves import Event
 from ulens_lsst.parallel_utils import ParallelProcessor
 from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry, process_ulens_event_rubin_sim
 from ulens_lsst.region_sky import SkyRegion
+from ulens_lsst.release_config import resolve_configured_image_processing
 from ulens_lsst.utils import setup_logger, get_nearby_objects, sky_catalog_query
 
 
@@ -233,6 +235,17 @@ class SimPipeline:
         self.max_temp_files = config.get("max_temp_files", 10000)
         self.sim_type = config.get("sim_type", "ideal")
         self.data_preview = config.get("lsst_images", {}).get("data_preview", "dp0")
+        self.image_processing = resolve_configured_image_processing(config)
+        self.release_config = (
+            self.image_processing.release_config
+            if self.image_processing is not None
+            else None
+        )
+        self.image_processor_name = (
+            self.image_processing.processor_name
+            if self.image_processing is not None
+            else None
+        )
         self.max_load_calexps = config.get("lsst_images", {}).get("max_load_calexps", None)
         self.opsim_version = config.get("opsim", {}).get("opsim_version", "baseline")
         self.opsim_noise = config.get("opsim", {}).get("opsim_noise", False)
@@ -531,28 +544,118 @@ class SimPipeline:
             self.cadence_noise = "ideal"
         elif self.sim_type == "lsst_images":
             from ulens_lsst.lsst_data import LSSTData
-            lsst_data = LSSTData(
-                ra=self.sky_center.get("coord", [0.5])[0] if self.sky_center["frame"] == "icrs" else SkyCoord(
-                    l=self.sky_center["l"] * u.degree, b=self.sky_center["b"] * u.degree, frame="galactic"
+            image_access_kwargs = {
+                "ra": self.sky_center.get("coord", [0.5])[0]
+                if self.sky_center["frame"] == "icrs"
+                else SkyCoord(
+                    l=self.sky_center["l"] * u.degree,
+                    b=self.sky_center["b"] * u.degree,
+                    frame="galactic",
                 ).icrs.ra.deg,
-                dec=self.sky_center.get("coord", [-1.25])[1] if self.sky_center["frame"] == "icrs" else SkyCoord(
-                    l=self.sky_center["l"] * u.degree, b=self.sky_center["b"] * u.degree, frame="galactic"
+                "dec": self.sky_center.get("coord", [-1.25])[1]
+                if self.sky_center["frame"] == "icrs"
+                else SkyCoord(
+                    l=self.sky_center["l"] * u.degree,
+                    b=self.sky_center["b"] * u.degree,
+                    frame="galactic",
                 ).icrs.dec.deg,
-                radius=self.sky_radius,
-                data_preview=self.data_preview,
-                name=self.name,
-            )
-            try:
-                lsst_data.calexp_catalog(bands=self.bands, n_max=self.max_load_calexps)
-                self.logger.info(f"Loaded {len(lsst_data.calexps_data)} calexps for bands {self.bands}")
-                lsst_data.calexps_data.to_csv(os.path.join(self.output_dir, "data_calexps.csv"), index=False)
-            except Exception as e:
-                self.logger.error(f"Failed to load calexps: {str(e)}")
-                raise ValueError(f"Failed to load calexps: {str(e)}")
-            self.cadence_noise = self.data_preview
-            self.epochs = lsst_data.epochs
-            self.survey_dates = lsst_data.survey_dates
-            self.peak_range = self.survey_dates
+                "radius": self.sky_radius,
+                "name": self.name,
+            }
+
+            if self.image_processing is None:
+                # Temporary compatibility path for existing DP0/DP1 runs.
+                image_access_kwargs["data_preview"] = self.data_preview
+                lsst_data = LSSTData(**image_access_kwargs)
+                try:
+                    lsst_data.calexp_catalog(
+                        bands=self.bands, n_max=self.max_load_calexps
+                    )
+                    self.logger.info(
+                        f"Loaded {len(lsst_data.calexps_data)} legacy images "
+                        f"for bands {self.bands}"
+                    )
+                    lsst_data.calexps_data.to_csv(
+                        os.path.join(self.output_dir, "data_calexps.csv"),
+                        index=False,
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to load legacy images: {str(e)}")
+                    raise ValueError(f"Failed to load legacy images: {str(e)}")
+                self.cadence_noise = self.data_preview
+                self.epochs = lsst_data.epochs
+                self.survey_dates = lsst_data.survey_dates
+                self.peak_range = self.survey_dates
+            else:
+                # New release-aware PREPARE path. The selected processor and
+                # release have already been structurally validated during
+                # configuration loading.
+                self.logger.warning(
+                    "Processor/release compatibility status: %s. %s",
+                    self.image_processing.compatibility.status,
+                    self.image_processing.compatibility.message,
+                )
+                image_access_kwargs["release_config"] = self.release_config
+                lsst_data = LSSTData(**image_access_kwargs)
+                try:
+                    limit = (
+                        int(self.max_load_calexps)
+                        if self.max_load_calexps not in (None, "all")
+                        else None
+                    )
+                    contexts = lsst_data.select_image_contexts(
+                        bands=self.bands, limit=limit
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to select release-aware images: {str(e)}"
+                    )
+                    raise ValueError(
+                        f"Failed to select release-aware images: {str(e)}"
+                    )
+
+                if not contexts:
+                    raise ValueError("No images were selected for the configured sky region.")
+
+                self.image_contexts = contexts
+                image_rows = [
+                    {
+                        "image_id": context.image_id,
+                        "dataset_type": context.dataset_type,
+                        "data_id": json.dumps(dict(context.data_id), sort_keys=True),
+                        "visit": context.visit,
+                        "detector": context.detector,
+                        "band": context.band,
+                        "mjd": context.mjd,
+                        "seeing": context.seeing,
+                        "limiting_depth": context.limiting_depth,
+                    }
+                    for context in contexts
+                ]
+                pq.write_table(
+                    pa.Table.from_pylist(image_rows),
+                    os.path.join(self.output_dir, "images.parquet"),
+                    compression="snappy",
+                )
+                self.logger.info(
+                    f"Prepared {len(contexts)} release-aware images for "
+                    f"processor {self.image_processor_name!r}"
+                )
+                self.cadence_noise = self.release_config.name
+                self.epochs = {
+                    band: sorted(
+                        context.mjd
+                        for context in contexts
+                        if context.band == band and context.mjd is not None
+                    )
+                    for band in self.bands
+                }
+                self.epochs = {key: value for key, value in self.epochs.items() if value}
+                self.survey_dates = (
+                    min(value for values in self.epochs.values() for value in values),
+                    max(value for values in self.epochs.values() for value in values),
+                )
+                self.peak_range = self.survey_dates
 
         input_df = pd.DataFrame({
             "event_id": self.event_ids,
