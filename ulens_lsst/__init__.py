@@ -6,7 +6,15 @@ This package provides tools for simulating microlensing events using LSST data
 """
 __version__ = "1.0.0"
 from .catalogs_utils import Catalog
-from .simulation_pipeline import SimPipeline
+
+
+def __getattr__(name):
+    """Load the event-simulation pipeline only when it is requested."""
+    if name == "SimPipeline":
+        from .simulation_pipeline import SimPipeline
+
+        return SimPipeline
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 import logging
 
