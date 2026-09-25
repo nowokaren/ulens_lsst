@@ -37,6 +37,7 @@ from regions import CircleSkyRegion
 
 # Local imports
 from ulens_lsst.catalogs_utils import Catalog
+from ulens_lsst.image_processors import InjectionForcedPhotometryProcessor
 from ulens_lsst.light_curves import Event
 try:
     from ulens_lsst.lsst_data import LSSTData, Calexp
@@ -702,35 +703,15 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
             "error": f"Failed to obtain injection_data: {str(e)}\n{traceback.format_exc()}",
         }
 
-    logger.info(f"Calexp {calexp_id}: Initializing LSSTTools")
+    logger.info(f"Calexp {calexp_id}: Running injection_forced_photometry")
     try:
-        tools = LSSTTools(calexp)
-    except Exception as e:
-        logger.error(f"Calexp {calexp_id}: Failed initializing LSSTTools")
-        return {
-            "calexp_id": calexp_id,
-            "status": "failed",
-            "error": f"Failed to initialize LSSTTools: {str(e)}\n{traceback.format_exc()}",
-        }
-
-    logger.info(f"Calexp {calexp_id}: Creating injection catalog")
-    try:
-        injection_catalog = tools.create_injection_catalog(
-            ra_values=injection_data["ra"],
-            dec_values=injection_data["dec"],
-            mag_values=injection_data["ideal_mag"],
-            magnification_values=injection_data["magnification"],
-            expMidptMJD=row["expMidptMJD"],
-            visit=row["visit"],
-            detector=row["detector"],
-            event_ids=injection_data["event_id"],
+        processor = InjectionForcedPhotometryProcessor()
+        process_result = processor.process(
+            image=calexp,
+            context=row.to_dict(),
+            sources=injection_data,
         )
-        
-        logger.info(f"Calexp {calexp_id}: Injecting {len(injection_catalog)} sources")
-        injection_output = tools.inject_sources(injection_catalog)
-        injected_exposure = injection_output["output_exposure"]
-        injected_catalog = injection_output["output_catalog"]
-        
+        extraction = process_result.products["photometry"]
     except Exception as e:
         err_str = str(e)
         if "No sources to be injected for this DatasetRef" in err_str:
@@ -742,17 +723,7 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
             "status": "failed",
             "error": f"Failed to process calexp: {err_str}\n{traceback.format_exc()}",
         }
-    
-    logger.info(f"Calexp {calexp_id}: Measuring photometry for {len(injected_catalog)} sources")
-    try:
-        extraction = tools.measure_photometry(injected_exposure, injected_catalog)
-    except Exception as e:
-        logger.error(f"Calexp {calexp_id}: Failed measuring photometry{traceback.format_exc()}")
-        return {
-            "calexp_id": calexp_id,
-            "status": "failed",
-            "error": f"Failed to measure photometry: {str(e)}\n{traceback.format_exc()}",
-        }
+
     n_meas_sources = len(extraction[extraction["measure_flag"]==""])
     logger.info(f"Calexp {calexp_id}: Saving {n_meas_sources} photometry results")
     try:
