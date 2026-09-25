@@ -21,6 +21,12 @@ try:
     from ulens_lsst.image_processors import get_image_processor
     from ulens_lsst.image_processing_run import process_work_unit
     from ulens_lsst.lsst_data import LSSTData
+    from ulens_lsst.scientific_validation import (
+        ControlledValidationSource,
+        run_controlled_validation,
+        summarize_validation,
+        write_validation_rows,
+    )
     from ulens_lsst.work_units import build_work_unit_rows
 except ImportError:  # pragma: no cover - depends on the RSP environment
     get_data_release = None
@@ -201,6 +207,61 @@ class TestRspImageAccess(unittest.TestCase):
             self.assertEqual(result["state"], "completed")
             self.assertTrue(output.exists())
             self.assertEqual(pq.read_table(output).num_rows, 1)
+
+    def test_controlled_scientific_validation(self):
+        """Characterize, but do not threshold, controlled flux recovery."""
+        from lsst.geom import Point2D
+
+        data_id = {
+            key: self.ref.dataId[key]
+            for key in self.ref.datasetType.dimensions.names
+        }
+        context = ImageContext(
+            image_id="rsp-validation-image",
+            dataset_type=self.release.calexp_dataset_types[0],
+            data_id=data_id,
+            visit=int(data_id["visit"]),
+            detector=int(data_id["detector"]),
+            band=str(data_id["band"]),
+            mjd=0.0,
+        )
+        image = self.data.load_image(context)
+        bbox = image.expF.getBBox()
+        center = bbox.getCenter()
+        positions = [
+            center,
+            Point2D(center.getX() + 100.0, center.getY()),
+            Point2D(center.getX(), center.getY() + 100.0),
+        ]
+        sources = []
+        for index, position in enumerate(positions):
+            sky = image.expF.getWcs().pixelToSky(position)
+            sources.append(
+                ControlledValidationSource(
+                    source_id=f"source-{index}",
+                    ra_deg=sky.getRa().asDegrees(),
+                    dec_deg=sky.getDec().asDegrees(),
+                    magnitude=20.0 + 2.0 * index,
+                    seed=100 + index,
+                )
+            )
+        rows = run_controlled_validation(
+            image,
+            context,
+            sources,
+            release_name=self.release.name,
+            image_id=context.image_id,
+        )
+        self.assertEqual(len(rows), len(sources))
+        self.assertTrue(all(row["expected_inst_flux"] > 0 for row in rows))
+        self.assertTrue(all(row["edge_distance_pixels"] > 100 for row in rows))
+        summary = summarize_validation(rows)
+        self.assertEqual(summary["n_rows"], len(sources))
+
+        output_root = os.environ.get("ULENS_LSST_RSP_VALIDATION_OUTPUT")
+        if output_root:
+            output_path = Path(output_root) / self.release.name / "part-000001.parquet"
+            write_validation_rows(rows, output_path)
 
 
 if __name__ == "__main__":
