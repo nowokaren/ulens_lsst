@@ -45,12 +45,19 @@ import yaml
 import shutil
 import pandas as pd
 import os
-from ulens_lsst.simulation_pipeline import SimPipeline
+import sys
 
 def main() -> None:
     """
     Main entry point for the CLI script.
     """
+    if len(sys.argv) > 1 and sys.argv[1] in {"process", "status", "restart-plan", "finalize"}:
+        from ulens_lsst.control import main as control_main
+
+        raise SystemExit(control_main(sys.argv[1:]))
+
+    from ulens_lsst.simulation_pipeline import SimPipeline
+
     parser = argparse.ArgumentParser(description="Run the ulens_lsst microlensing simulation pipeline.")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config.yaml (default: 'config.yaml')")
     parser.add_argument("--folder", type=str, default="test", help="Name of pre-existing simulation")
