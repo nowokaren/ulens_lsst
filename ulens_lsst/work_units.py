@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 
 def make_image_id(
@@ -50,6 +50,28 @@ def make_work_unit_id(image_ids: Sequence[str]) -> str:
     payload = json.dumps(ordered_image_ids, separators=(",", ":"), ensure_ascii=True)
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
     return f"wu-{digest}"
+
+
+def build_work_unit_rows(
+    image_ids: Sequence[str],
+    images_per_work_unit: int = 1,
+) -> list[dict[str, Any]]:
+    """Build deterministic PREPARE rows for independent image groups."""
+    if images_per_work_unit < 1:
+        raise ValueError("images_per_work_unit must be positive")
+
+    ordered_image_ids = sorted(image_ids)
+    rows = []
+    for start in range(0, len(ordered_image_ids), images_per_work_unit):
+        group = ordered_image_ids[start : start + images_per_work_unit]
+        rows.append(
+            {
+                "work_unit_id": make_work_unit_id(group),
+                "image_ids": json.dumps(group, separators=(",", ":")),
+                "n_images": len(group),
+            }
+        )
+    return rows
 
 
 def work_unit_product_path(

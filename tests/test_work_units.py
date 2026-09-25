@@ -14,6 +14,7 @@ _SPEC.loader.exec_module(_MODULE)
 make_image_id = _MODULE.make_image_id
 make_injection_id = _MODULE.make_injection_id
 make_work_unit_id = _MODULE.make_work_unit_id
+build_work_unit_rows = _MODULE.build_work_unit_rows
 work_unit_product_path = _MODULE.work_unit_product_path
 
 
@@ -44,6 +45,15 @@ class TestWorkUnitIdentities(unittest.TestCase):
     def test_product_path_rejects_path_traversal(self):
         with self.assertRaises(ValueError):
             work_unit_product_path("runs/example", "photometry", "../other")
+
+    def test_work_unit_rows_are_deterministic_and_grouped(self):
+        rows = build_work_unit_rows(["image-b", "image-a", "image-c"], 2)
+        self.assertEqual([row["n_images"] for row in rows], [2, 1])
+        self.assertEqual(rows[0]["image_ids"], '["image-a","image-b"]')
+        self.assertEqual(
+            rows,
+            build_work_unit_rows(["image-c", "image-a", "image-b"], 2),
+        )
 
 
 if __name__ == "__main__":

@@ -45,6 +45,7 @@ from ulens_lsst.parallel_utils import ParallelProcessor
 from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry, process_ulens_event_rubin_sim
 from ulens_lsst.region_sky import SkyRegion
 from ulens_lsst.release_config import resolve_configured_image_processing
+from ulens_lsst.work_units import build_work_unit_rows
 from ulens_lsst.utils import setup_logger, get_nearby_objects, sky_catalog_query
 
 
@@ -636,9 +637,22 @@ class SimPipeline:
                     os.path.join(self.output_dir, "images.parquet"),
                     compression="snappy",
                 )
+                images_per_work_unit = int(
+                    self.config.get("images_per_work_unit", 1)
+                )
+                work_unit_rows = build_work_unit_rows(
+                    [context.image_id for context in contexts],
+                    images_per_work_unit=images_per_work_unit,
+                )
+                pq.write_table(
+                    pa.Table.from_pylist(work_unit_rows),
+                    os.path.join(self.output_dir, "work_units.parquet"),
+                    compression="snappy",
+                )
                 self.logger.info(
                     f"Prepared {len(contexts)} release-aware images for "
-                    f"processor {self.image_processor_name!r}"
+                    f"processor {self.image_processor_name!r} in "
+                    f"{len(work_unit_rows)} work units"
                 )
                 self.cadence_noise = self.release_config.name
                 self.epochs = {
