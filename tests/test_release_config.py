@@ -55,12 +55,24 @@ class TestReleaseConfig(unittest.TestCase):
         self.assertEqual(result.status, "requires_rsp_validation")
         self.assertIn("RSP", result.message)
 
-    def test_non_image_photometry_profile_is_rejected(self):
+    def test_non_image_photometry_profile_is_currently_unavailable(self):
         release = replace(resolve_data_release(), photometry_method="coadd_forced")
+        result = check_processor_compatibility(
+            "injection_forced_photometry", release
+        )
+        self.assertEqual(result.status, "currently_unavailable")
         with self.assertRaisesRegex(ValueError, "photometry_method"):
             require_prepare_compatibility(
                 "injection_forced_photometry", release
             )
+
+    def test_dp2_profile_resolves_but_current_image_processor_is_unavailable(self):
+        release = resolve_data_release("DP2")
+        result = check_processor_compatibility(
+            "injection_forced_photometry", release
+        )
+        self.assertEqual(release.name, "DP2")
+        self.assertEqual(result.status, "currently_unavailable")
 
     def test_unknown_processor_is_rejected(self):
         release = resolve_data_release()

@@ -92,3 +92,22 @@ accessible Butler collections vary between RSP deployments. For example::
 These variables are test inputs, not a release mapping for the RAC path. The
 test queries one DatasetRef, loads one exposure, and checks WCS, PSF,
 PhotoCalib, mask, and variance availability.
+
+Release validation status
+-------------------------
+
+The processor boundary is release-independent. The resolved
+``DataReleaseConfig`` supplies the concrete image dataset, collection, and
+data-ID convention.
+
+* DP0.2 is real-RSP tested with ``calexp``, injection, and forced photometry.
+* DP1 is real-RSP tested with ``visit_image``, injection, and forced
+  photometry.
+* DP2 resolves as a recognized release, but its current profile advertises
+  ``coadd_forced``. Single-image injection is therefore currently unavailable
+  for that profile, pending an individual-image product and RSP validation.
+
+This is a current data-capability state, not a permanent architectural
+incompatibility. Updating the resolved RSP profile and repeating the same
+integration test should be sufficient when individual DP2 images become
+available.

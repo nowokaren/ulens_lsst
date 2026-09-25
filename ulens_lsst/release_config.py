@@ -109,13 +109,14 @@ def check_processor_compatibility(
 
     if release_config.photometry_method != "calexp_forced":
         return ProcessorCompatibility(
-            status="unsupported",
+            status="currently_unavailable",
             message=(
-                f"Image processor {processor_name!r} requires individual "
-                "calibrated-image forced photometry, but the resolved "
-                f"release declares photometry_method="
-                f"{release_config.photometry_method!r}. No fallback release "
-                "or measurement mode will be selected automatically."
+                f"Image processor {processor_name!r} currently requires "
+                "individual calibrated-image forced photometry, but the "
+                f"resolved release declares photometry_method="
+                f"{release_config.photometry_method!r}. The release may "
+                "become available when its RSP profile exposes the required "
+                "individual-image product."
             ),
         )
 
@@ -136,7 +137,7 @@ def require_prepare_compatibility(
 ) -> ProcessorCompatibility:
     """Reject structurally unsupported processor/release combinations."""
     result = check_processor_compatibility(processor_name, release_config)
-    if result.status == "unsupported":
+    if result.status in {"unsupported", "currently_unavailable"}:
         release_name = getattr(release_config, "name", "<unknown release>")
         raise ValueError(
             f"Selected image processor {processor_name!r} is not compatible "
