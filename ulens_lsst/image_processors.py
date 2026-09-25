@@ -83,13 +83,17 @@ class InjectionForcedPhotometryProcessor(ImageProcessor):
         if event_ids is None:
             event_ids = [None] * len(sources)
 
+        exposure_time = context_value("expMidptMJD", context_value("mjd"))
+        if exposure_time is None:
+            exposure_time = column("time")
+
         injection_catalog = tools.create_injection_catalog(
             ra_values=column("ra"),
             dec_values=column("dec"),
             mag_values=column("ideal_mag"),
             magnification_values=magnification,
             event_ids=event_ids,
-            expMidptMJD=context_value("expMidptMJD", context_value("mjd")),
+            expMidptMJD=exposure_time,
             visit=context_value("visit"),
             detector=context_value("detector"),
         )
