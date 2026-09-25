@@ -257,6 +257,14 @@ def process_work_unit(
     run_dir = Path(run_dir)
     status_path = _status_path(run_dir, work_unit_id)
     output_path = work_unit_product_path(run_dir, "photometry", work_unit_id)
+    previous_state = None
+    if status_path.exists():
+        try:
+            previous_state = json.loads(
+                status_path.read_text(encoding="utf-8")
+            ).get("state")
+        except Exception:
+            previous_state = None
     started = time.time()
     status = {
         "status_version": STATUS_VERSION,
@@ -270,10 +278,17 @@ def process_work_unit(
 
     try:
         if not force and output_path.exists():
-            pq.read_table(output_path, columns=["event_id", "image_id"])
-            status.update({"state": "completed", "skipped": True, "ended_at": _utc_now()})
-            _write_json_atomic(status_path, status)
-            return status
+            if previous_state in {"completed", "empty_success"}:
+                pq.read_table(output_path, columns=["event_id", "image_id"])
+                status.update(
+                    {
+                        "state": previous_state,
+                        "skipped": True,
+                        "ended_at": _utc_now(),
+                    }
+                )
+                _write_json_atomic(status_path, status)
+                return status
 
         config = _read_config(run_dir)
         selection = resolve_configured_image_processing(config)

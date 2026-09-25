@@ -44,6 +44,8 @@ def validate_photometry_part(path: Path) -> dict[str, Any]:
     parquet_file = pq.ParquetFile(path)
     for batch in parquet_file.iter_batches(columns=["event_id", "image_id"]):
         for row in batch.to_pylist():
+            if row["event_id"] is None or row["image_id"] is None:
+                raise ValueError(f"Null scientific key in {path}: {row}")
             key = (row["event_id"], row["image_id"])
             if key in seen:
                 raise ValueError(f"Duplicate scientific key in {path}: {key}")

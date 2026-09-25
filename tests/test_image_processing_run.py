@@ -123,6 +123,24 @@ class TestProcessWorkUnit(unittest.TestCase):
         self.assertEqual(first["state"], "completed")
         self.assertTrue(second["skipped"])
 
+    def test_failed_state_is_reprocessed_even_if_old_output_exists(self):
+        selection = SimpleNamespace(
+            processor_name="injection_forced_photometry",
+            release_config=SimpleNamespace(),
+        )
+        with patch("ulens_lsst.image_processing_run.resolve_configured_image_processing", return_value=selection), \
+             patch("ulens_lsst.image_processing_run._create_image_data", return_value=FakeImageData()), \
+             patch("ulens_lsst.image_processing_run.get_image_processor", return_value=FakeProcessor()):
+            process_work_unit(self.run_dir, self.work_unit_id)
+            status_path = self.run_dir / "status" / f"part-{self.work_unit_id}.json"
+            payload = json.loads(status_path.read_text())
+            payload["state"] = "failed"
+            status_path.write_text(json.dumps(payload))
+            result = process_work_unit(self.run_dir, self.work_unit_id)
+
+        self.assertEqual(result["state"], "completed")
+        self.assertNotIn("skipped", result)
+
 
 if __name__ == "__main__":
     unittest.main()
