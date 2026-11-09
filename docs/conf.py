@@ -18,7 +18,7 @@ suppress_warnings = ['autodoc.import_object']  # Suppress import warnings
 project = 'Microlensing LSST Light curve Simulator'
 copyright = '2025, Karen Nowogrodzki'
 author = 'Karen Nowogrodzki'
-release = '1.0.0'
+release = '1.0.1'
 
 extensions = [
     'sphinx.ext.autodoc',

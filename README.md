@@ -7,7 +7,7 @@
 
 `ulens_lsst` is a Python package designed to generate image-based microlensing light curves using LSST-like data (DP0, DP1, or Rubin Simulation). It supports flexible experimentation, event simulation, synthetic photometry injection, and parallel processing.
 
-## Current Status (v1.0.0)
+## Current Status (v1.0.1)
 
 - Fully functional end-to-end simulation in environments with the LSST Science Pipelines installed.
 - Produces realistic light curves with magnification, ideal/measured fluxes, errors, and flags.
@@ -47,6 +47,10 @@ Copy and edit the example config:
 cp config/config_example.yaml config.yaml
 ```
 Adjust paths, sky region, number of events, model (USBL, etc.), steps, etc.
+Set `nearby_object_count_radius_arcsec` to control the radius used by
+`load_nearby_objects()` when counting unique `Object` catalog entries around each event.
+The events catalog stores the count in `nearby_object_n_within_radius` and records the
+applied radius in `nearby_object_count_radius_arcsec`.
 
 ## Quick Start (tested on RSP)
 

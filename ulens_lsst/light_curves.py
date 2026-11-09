@@ -195,6 +195,8 @@ class Event:
             "ra": None,
             "dec": None,
             "distance": None,
+            "n_within_radius": None,
+            "count_radius_arcsec": None,
             **{f"mag_{band}": np.nan for band in self.bands},
             **{f"fwhm_{band}": np.nan for band in self.bands},
         }
@@ -702,6 +704,10 @@ class Event:
                 param_lines.append("")
                 param_lines.append("Nearest source data:")
                 param_lines.append(f"distance: {ns["distance"]:.2f} arcsec")
+                if ns.get("n_within_radius") is not None:
+                    param_lines.append(
+                        f"objects within {ns['count_radius_arcsec']:.1f} arcsec: {ns['n_within_radius']}"
+                    )
                 param_lines.append(f" {'band':^4} {'mag':>6} {'FWHM':>6}")
                 for band in self.bands:
                     # dist = np.round(ns[band]['distance'], 2)
@@ -820,6 +826,8 @@ class Event:
             "nearby_object_dec": self.nearby_object.get("dec", None),
             "nearby_object_objId": self.nearby_object.get("objectId", None),
             "nearby_object_distance": self.nearby_object.get("distance", None),
+            "nearby_object_n_within_radius": self.nearby_object.get("n_within_radius", None),
+            "nearby_object_count_radius_arcsec": self.nearby_object.get("count_radius_arcsec", None),
             "cadence_noise": self.cadence_noise,
             "peak_time": self.parameters.get("t0", np.nan),
             **{f"nearby_object_mag_{band}": self.nearby_object.get(f"mag_{band}", np.nan) for band in self.bands},
@@ -952,6 +960,8 @@ class Event:
             "dec": event_row.get("nearby_object_dec", None),
             "objectId": event_row.get("nearby_object_objId", None),
             "distance": event_row.get("nearby_object_distance", None),
+            "n_within_radius": event_row.get("nearby_object_n_within_radius", None),
+            "count_radius_arcsec": event_row.get("nearby_object_count_radius_arcsec", None),
             **{f"mag_{band}": event_row.get(f"nearby_object_mag_{band}", np.nan) for band in event.bands},
             **{f"fwhm_{band}": event_row.get(f"nearby_object_fwhm_{band}", np.nan) for band in event.bands},
         }

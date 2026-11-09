@@ -32,6 +32,8 @@ sky_radius: 0.05
 # Radius of the injection region (degrees)
 blend_distance: 0.001
 # Separation distance for nearby source queries (degrees)
+nearby_object_count_radius_arcsec: 3.6
+# Radius around each event for counting unique Object catalog entries (arcsec)
 
 # Simulation type and data source
 sim_type: "lsst_images"
@@ -174,6 +176,8 @@ events_schema:
   nearby_object_dec: float32
   nearby_object_objId: float64
   nearby_object_distance: float32
+  nearby_object_n_within_radius: int32
+  nearby_object_count_radius_arcsec: float32
   cadence_noise: string
   peak_time: float32
   nearby_object_mag_u: float32
