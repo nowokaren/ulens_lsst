@@ -9,4 +9,5 @@ The following Jupyter notebooks demonstrate how to use `ulens_lsst`:
    :maxdepth: 1
 
    tutorials/main_tutorial
+   tutorials/tutorial_ulens_lsst_pipeline
 

@@ -488,7 +488,8 @@ class Event:
         show_params : Union[bool, List[str]], optional
             Show model parameters; if list, specifies parameters (default: True).
         show_nearby_object : bool, optional
-            Show nearby object data in plot legend (default: True).
+            Show nearest-source distance and configured-radius object count, even when
+            `show_params=False` (default: True).
         survey_dates : Tuple[float, float], optional
             Survey start and end dates (MJD) to mark.
         ax : matplotlib.axes.Axes, optional
@@ -543,9 +544,10 @@ class Event:
                         ideal["time"],
                         ideal["ideal_mag"],
                         ".",
+                        markersize=1,
                         color=color,
                         label=f"{band}_ideal",
-                        alpha=0.8,
+                        alpha=0.45,
                     )
                     type_order.append("ideal")
 
@@ -682,10 +684,11 @@ class Event:
             type_order.append("other")
 
         # Display parameters
+        param_lines = []
         if show_params:
             default_params = ["tE", "u0", "t0"]
             selected_params = show_params if isinstance(show_params, list) else default_params
-            param_lines = [f"Model: {self.model}", f"System Type: {self.system_type}"]
+            param_lines.extend([f"Model: {self.model}", f"System Type: {self.system_type}"])
             for param in selected_params:
                 if param in self.parameters:
                     val = self.parameters[param]
@@ -699,22 +702,45 @@ class Event:
                             param_lines.append(f"{param:>8}: {val:.2f}")
                     except (ValueError, TypeError):
                         param_lines.append(f"{param:>8}: {val}")
-            if show_nearby_object and self.nearby_object:
-                ns = self.nearby_object
-                param_lines.append("")
-                param_lines.append("Nearest source data:")
-                param_lines.append(f"distance: {ns["distance"]:.2f} arcsec")
-                if ns.get("n_within_radius") is not None:
-                    param_lines.append(
-                        f"objects within {ns['count_radius_arcsec']:.1f} arcsec: {ns['n_within_radius']}"
-                    )
+
+        if show_nearby_object:
+            ns = self.nearby_object
+            has_nearby_info = any(
+                ns.get(key) is not None
+                for key in ("objectId", "distance", "n_within_radius", "count_radius_arcsec")
+            )
+            if has_nearby_info:
+                param_lines.extend(["", "Nearest source data:"])
+                distance = ns.get("distance")
+                distance_text = (
+                    f"{float(distance):.2f} arcsec"
+                    if distance is not None and np.isfinite(distance)
+                    else "n/a"
+                )
+                param_lines.append(f"distance: {distance_text}")
+
+                radius = ns.get("count_radius_arcsec")
+                radius_text = (
+                    f"{float(radius):g}"
+                    if radius is not None and np.isfinite(radius)
+                    else "n/a"
+                )
+                count = ns.get("n_within_radius")
+                count_text = (
+                    str(int(count))
+                    if count is not None and np.isfinite(count)
+                    else "n/a"
+                )
+                param_lines.append(f"objects within {radius_text} arcsec: {count_text}")
+
                 param_lines.append(f" {'band':^4} {'mag':>6} {'FWHM':>6}")
                 for band in self.bands:
-                    # dist = np.round(ns[band]['distance'], 2)
                     mag = np.round(ns[f"mag_{band}"], 2)
                     fwhm = np.round(ns[f"fwhm_{band}"], 2)
                     if not np.isnan(mag) and not np.isnan(fwhm):
                         param_lines.append(f" {band:^4} {str(mag):>6} {str(fwhm):>6}")
+
+        if param_lines:
             param_text = "\n".join(param_lines)
             plt.text(
                 1.02,

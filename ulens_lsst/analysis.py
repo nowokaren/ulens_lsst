@@ -37,6 +37,7 @@ import pyarrow.parquet as pq
 import seaborn as sns
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+from astropy.visualization.wcsaxes import SphericalCircle
 from astropy.wcs import WCS
 from shapely.geometry import Polygon
 from tqdm.auto import tqdm
@@ -54,6 +55,7 @@ def plot_event_fov(
     index_run: int = 1,
     bands: Optional[List[str]] = None,
     save: bool = True,
+    show_nearby_objects: bool = True,
 ) -> None:
     """
     Plot light curves and calexp cutouts for an event across multiple bands.
@@ -71,6 +73,8 @@ def plot_event_fov(
         Index of the run for file naming (default: 1).
     bands : List[str], optional
         Bands to plot; uses event.bands if None.
+    show_nearby_objects : bool, optional
+        Draw the configured count-radius circle and nearby catalog Objects together.
     save : bool, optional
         Save the plot to file if True; otherwise, display it (default: True).
 
@@ -79,13 +83,39 @@ def plot_event_fov(
     ValueError
         If no valid photometry data is found or calexp loading fails.
     """
-    sim = SimPipeline(from_folder=sim_name)
+    sim = SimPipeline(from_folder=sim_name, new=False)
     events_file = os.path.join(sim.output_dir, f"data-events_{index_run}.parquet")
     calexps_photometry_file = os.path.join(sim.output_dir, f"calexps-photometry_{index_run}.parquet")
     calexps = pd.read_csv(os.path.join(sim.output_dir, "data_calexps.csv"))
 
     event = Event.from_parquet(event_id, calexps_photometry_file, events_file)
     bands = bands or event.bands
+    radius_arcsec = sim.nearby_object_count_radius_arcsec
+    lsst_data = LSSTData(
+        ra=event.ra,
+        dec=event.dec,
+        radius=radius_arcsec / 3600,
+        data_preview=sim.data_preview,
+        bands=bands,
+        name=sim.name,
+        main_path=sim.main_path,
+    )
+    try:
+        catalog_objects = lsst_data.load_catalog("Object", print_on=False, save=False)
+        object_coords = SkyCoord(
+            ra=catalog_objects["coord_ra"].to_numpy() * u.deg,
+            dec=catalog_objects["coord_dec"].to_numpy() * u.deg,
+        )
+        event_coord = SkyCoord(ra=event.ra * u.deg, dec=event.dec * u.deg, frame="icrs")
+        nearby_objects = catalog_objects.loc[
+            event_coord.separation(object_coords) <= radius_arcsec * u.arcsec
+        ]
+    except RuntimeError as exc:
+        if "No records found" not in str(exc):
+            raise
+        nearby_objects = pd.DataFrame(columns=["coord_ra", "coord_dec", "ObjectId"])
+    nearby_count = nearby_objects["ObjectId"].nunique()
+    nearest_id = event.nearby_object.get("objectId")
     fig, axs = plt.subplots(2, len(bands), figsize=(4 * len(bands), 8))
 
     for i, band in enumerate(tqdm(bands, desc=f"Event {event_id} - Plotting filter light curves")):
@@ -156,15 +186,44 @@ def plot_event_fov(
         if isinstance(new_cutout, Calexp):
             axs[1, i].remove()
             axs[1, i] = fig.add_subplot(2, len(bands), len(bands) + i + 1, projection=WCS(new_cutout.wcs.getFitsMetadata()))
-            ax = new_cutout.plot(ax=axs[1, i], title=f"Epoch: {round(phot_data['time'])}; inj_mag = {round(phot_data['ideal_mag'], 1)}")
+            ax = new_cutout.plot(
+                ax=axs[1, i],
+                title=(
+                    f"Epoch: {round(phot_data['time'])}; inj_mag = {float(phot_data['ideal_mag']):.1f}; "
+                    f"Objects within {radius_arcsec:g} arcsec: {nearby_count}"
+                ),
+            )
             new_cutout.add_point(ax, event.ra, event.dec, r=10)
-            new_cutout.add_point(ax, event.nearby_object["ra"], event.nearby_object["dec"], c="b", r=10)
-    red_circle = mpatches.Patch(color="red", label="Injected event")
-    blue_circle = mpatches.Patch(color="blue", label="Nearby object")
+            if show_nearby_objects:
+                radius_circle = SphericalCircle(
+                    (event.ra, event.dec) * u.deg,
+                    radius_arcsec * u.arcsec,
+                    edgecolor="yellow",
+                    facecolor="none",
+                    transform=ax.get_transform("world"),
+                )
+                ax.add_patch(radius_circle)
+                for _, obj in nearby_objects.iterrows():
+                    is_nearest = pd.notna(nearest_id) and obj["ObjectId"] == nearest_id
+                    new_cutout.add_point(
+                        ax,
+                        obj["coord_ra"],
+                        obj["coord_dec"],
+                        c="cyan" if is_nearest else "blue",
+                        r=10 if is_nearest else 6,
+                    )
+
+    legend_handles = [mpatches.Patch(edgecolor="red", facecolor="none", label="Injected event")]
+    if show_nearby_objects:
+        legend_handles.extend([
+            mpatches.Patch(edgecolor="blue", facecolor="none", label="Objects within radius"),
+            mpatches.Patch(edgecolor="cyan", facecolor="none", label="Nearest object"),
+            mpatches.Patch(edgecolor="yellow", facecolor="none", label="Count radius"),
+        ])
     fig.legend(
-        handles=[red_circle, blue_circle],
+        handles=legend_handles,
         loc="lower center",
-        ncol=2,
+        ncol=len(legend_handles),
         fontsize=10,
         frameon=False
     )
