@@ -296,7 +296,9 @@ class ParallelProcessor:
         Parameters
         ----------
         num_pools : int, optional
-            Number of parallel processes to use (default: 4).
+            Number of multiprocessing Pool workers to create (default: 4).
+            Must be a positive integer. This does not limit threads used by
+            NumPy, BLAS, or LSST libraries.
         start_idx : int, optional
             Starting row index for processing (default: 0).
         end_idx : int, optional
@@ -313,6 +315,9 @@ class ParallelProcessor:
         ... )
         >>> processor.process(num_pools=4)
         """
+        if isinstance(num_pools, bool) or not isinstance(num_pools, int) or num_pools < 1:
+            raise ValueError(f"num_pools must be a positive integer; got {num_pools!r}.")
+
         try:
             if self.input_path.endswith(".parquet"):
                 table = pq.read_table(self.input_path)

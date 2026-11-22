@@ -170,6 +170,7 @@ class SimPipeline:
         summary += "=" * (len(self.name) + 13) + "\n\n"
         summary += "General configuration:\n"
         summary += f" - Number of events: {self.n_events}\n"
+        summary += f" - Multiprocessing Pool workers: {self.n_processes}\n"
         summary += f" - Model: {self.model}\n"
         summary += f" - System type: {self.system_type}\n"
         summary += f" - Sources catalog: {self.sources_catalog}\n"
@@ -223,7 +224,22 @@ class SimPipeline:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
+        self.main_path = config.get("main_path", self.main_path)
         self.name = config.get("name", "test")
+        configured_n_processes = config.get("n_processes")
+        if configured_n_processes is None:
+            self.n_processes = min(os.cpu_count() or 4, 8)
+        elif (
+            isinstance(configured_n_processes, bool)
+            or not isinstance(configured_n_processes, int)
+            or configured_n_processes < 1
+        ):
+            raise ValueError(
+                "n_processes must be a positive integer or null for automatic "
+                f"selection; got {configured_n_processes!r}."
+            )
+        else:
+            self.n_processes = configured_n_processes
         self.n_events = config.get("n_events", 10000)
         self.model = config.get("model", "USBL")
         self.system_type = config.get("system_type", "Planets_systems")
@@ -547,6 +563,7 @@ class SimPipeline:
                 radius=self.sky_radius,
                 data_preview=self.data_preview,
                 name=self.name,
+                main_path=self.main_path,
             )
             try:
                 lsst_data.calexp_catalog(bands=self.bands, n_max=self.max_load_calexps)
@@ -570,7 +587,7 @@ class SimPipeline:
         })
         pq.write_table(pa.Table.from_pandas(input_df), self.input_path, compression="snappy")
 
-        num_pools = min(os.cpu_count() or 4, 8)
+        num_pools = self.n_processes
         chunk_size = max(self.n_events // num_pools, 1)
         processor = ParallelProcessor(
             input_path=self.input_path,
@@ -588,6 +605,7 @@ class SimPipeline:
                 "m_5sigma": self.mag_5sigma,
                 "pylima_blend": self.pylima_blend,
                 "main_path": self.main_path,
+                "name": self.name,
                 "photometry_schema": self.photometry_schema,
                 "events_schema": self.events_schema,
                 "log_name": self.log_config["log_name"],
@@ -675,7 +693,8 @@ class SimPipeline:
             radius=self.sky_radius + count_radius_deg,
             data_preview=self.data_preview,
             bands=self.bands,
-            name=self.name
+            name=self.name,
+            main_path=self.main_path,
         )
     
         # --- Build list of catalog columns depending on DP version ---
@@ -954,7 +973,7 @@ class SimPipeline:
         table = pa.table({"event_id": event_ids, "bands": [self.bands] * len(event_ids)})
         pq.write_table(table, self.input_path, compression="snappy")
 
-        num_pools = min(os.cpu_count() or 4, 8)
+        num_pools = self.n_processes
         chunk_size = max(len(event_ids) // num_pools, 1)
         processor = ParallelProcessor(
             input_path=self.input_path,
@@ -1066,7 +1085,7 @@ class SimPipeline:
         self.calexps = pd.read_csv(os.path.join(self.output_dir, "data_calexps.csv"))
         events_data = pd.read_parquet(self.events_file, columns=["event_id", "ra", "dec"])
 
-        num_pools = min(os.cpu_count() or 4, 8)
+        num_pools = self.n_processes
         chunk_size = int(np.ceil(len(self.calexps) / num_pools))
         processor = ParallelProcessor(
             input_path=os.path.join(self.output_dir, "data_calexps.csv"),
@@ -1078,6 +1097,7 @@ class SimPipeline:
                 "survey_dates": self.survey_dates,
                 "peak_range": self.peak_range,
                 "main_path": self.main_path,
+                "name": self.name,
                 "photometry_file": self.photometry_file,
                 "events_data": events_data,
                 "calexps_photometry_schema": self.calexps_photometry_schema,

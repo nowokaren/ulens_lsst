@@ -1,29 +1,39 @@
-"""
-Unit tests for the ulens_lsst simulation pipeline.
-"""
+"""Local, data-independent tests for SimPipeline initialization."""
+
+import tempfile
 import unittest
-import pandas as pd
+from pathlib import Path
+
+import yaml
+
 from ulens_lsst.simulation_pipeline import SimPipeline
 
+
 class TestSimPipeline(unittest.TestCase):
-    """Test suite for SimPipeline class."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.config_path = 'config.yaml'
-        self.sim = SimPipeline(self.config_path)
+    def test_initialization_from_minimal_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.yaml"
+            config_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "main_path": str(Path(tmp) / "runs"),
+                        "name": "test_run",
+                        "n_events": 2,
+                        "bands": ["g"],
+                        "model": "PSPL",
+                        "system_type": "BH",
+                        "sim_type": "ideal",
+                        "n_processes": 1,
+                    }
+                )
+            )
+            sim = SimPipeline(str(config_path), setup_dir=False)
 
-    def test_initialization(self):
-        """Test SimPipeline initialization."""
-        self.assertEqual(self.sim.sim_type, 'lsst_images')
-        self.assertIsInstance(self.sim.bands, list)
+        self.assertEqual(sim.sim_type, "ideal")
+        self.assertEqual(sim.n_processes, 1)
+        self.assertEqual(sim.main_path, str(Path(tmp) / "runs"))
+        self.assertEqual(sim.bands, ["g"])
 
-    def test_simulate_lightcurves(self):
-        """Test simulate_lightcurves method."""
-        results = self.sim.simulate_lightcurves(event_processor='ulens')
-        self.assertIsInstance(results, pd.DataFrame)
-        self.assertIn('event_id', results.columns)
-        self.assertIn('status', results.columns)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
