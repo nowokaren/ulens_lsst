@@ -63,6 +63,7 @@ class TestNearbyObjectCounts(unittest.TestCase):
             sim.logger = logging.getLogger("test-nearby-object-counts")
             sim.sim_type = "lsst_images"
             sim.events_file = str(events_path)
+            sim.main_path = tmp
             sim.sky_center = {"coord": [0.0, 0.0], "frame": "icrs"}
             sim.sky_radius = 0.01
             sim.nearby_object_count_radius_arcsec = 2.0

@@ -11,6 +11,9 @@ main_path: "runs/"
 # Base directory for output files
 name: "new_test"
 # Name of the simulation run (used as folder name)
+n_processes: null
+# Multiprocessing Pool workers for this run. null keeps the historical setting:
+# min(os.cpu_count() or 4, 8). Set to 1 for a single worker.
 n_events: 20
 # Number of events to simulate
 bands: ["u", "g", "r", "i", "z", "y"]
@@ -130,8 +133,6 @@ format_output_params:
   # Minimum number of bands for output
   chunk_size: 500
   # Chunk size for parallel processing
-  n_processes: 8
-  # Number of processes for parallel processing
   max_events: null
   # Maximum number of events to process (null for all)
   memory_limit_mb: 4000

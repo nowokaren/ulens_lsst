@@ -580,7 +580,8 @@ def process_ulens_event_load_nearby_object(row: pd.Series, config: Dict[str, Any
                 radius=config["blend_distance"],
                 data_preview=cadence_noise,
                 bands=bands,
-                name="closest_source",
+                name=f"{config.get('name', 'simulation')}_closest_source",
+                main_path=config.get("main_path", "./runs"),
             )
             columns = []
             for band in bands:
@@ -601,7 +602,9 @@ def process_ulens_event_load_nearby_object(row: pd.Series, config: Dict[str, Any
             region = CircleSkyRegion(center=center, radius=lsst_data.radius * u.deg)
 
             try:
-                sources_data = lsst_data.load_catalog("Object", columns=columns, region=region, print_on=False)
+                sources_data = lsst_data.load_catalog(
+                    "Object", columns=columns, region=region, save=False, print_on=False
+                )
                 coords_array = sources_data[["coord_ra", "coord_dec"]].to_numpy()
                 idx, min_dist_arcsec, nearest_coords = get_nearby_objects(
                     np.array([[event.ra, event.dec]]), coords_array
