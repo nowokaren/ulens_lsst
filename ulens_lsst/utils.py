@@ -28,7 +28,7 @@ import sys
 
 # Third-party imports
 import numpy as np
-from astropy.coordinates import SkyCoord, match_coordinates_sky
+from astropy.coordinates import SkyCoord, match_coordinates_sky, search_around_sky
 import astropy.units as u
 from psutil import Process
 from typing import Dict, Any, List, Tuple
@@ -153,6 +153,32 @@ def get_nearby_objects(
     nearest_coords = np.column_stack((catalog[indices].ra.deg, catalog[indices].dec.deg))
     distances_arcsec = d2d.to(u.arcsec).value
     return indices, distances_arcsec, nearest_coords
+
+
+def count_objects_within_radius(
+    target_coords: np.ndarray,
+    catalog_coords: np.ndarray,
+    radius_arcsec: float,
+    object_ids: np.ndarray,
+) -> np.ndarray:
+    """Count unique catalog objects within an angular radius of each target.
+
+    Coordinates are RA/Dec in degrees. Catalog rows sharing an ObjectId count once.
+    """
+    if radius_arcsec < 0:
+        raise ValueError("radius_arcsec must be non-negative")
+
+    counts = np.zeros(len(target_coords), dtype=np.int32)
+    if not len(target_coords) or not len(catalog_coords):
+        return counts
+
+    targets = SkyCoord(ra=target_coords[:, 0] * u.deg, dec=target_coords[:, 1] * u.deg)
+    catalog = SkyCoord(ra=catalog_coords[:, 0] * u.deg, dec=catalog_coords[:, 1] * u.deg)
+    target_idx, catalog_idx, _, _ = search_around_sky(targets, catalog, radius_arcsec * u.arcsec)
+
+    for i in np.unique(target_idx):
+        counts[i] = np.unique(object_ids[catalog_idx[target_idx == i]]).size
+    return counts
 
 
 def sky_catalog_query(

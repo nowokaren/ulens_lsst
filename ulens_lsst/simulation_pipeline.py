@@ -44,7 +44,7 @@ from ulens_lsst.light_curves import Event
 from ulens_lsst.parallel_utils import ParallelProcessor
 from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry, process_ulens_event_rubin_sim
 from ulens_lsst.region_sky import SkyRegion
-from ulens_lsst.utils import setup_logger, get_nearby_objects, sky_catalog_query
+from ulens_lsst.utils import setup_logger, get_nearby_objects, count_objects_within_radius, sky_catalog_query
 
 
 class SimPipeline:
@@ -188,6 +188,7 @@ class SimPipeline:
             summary += f" - Center: (ra={self.sky_center['coord'][0]}, dec={self.sky_center['coord'][1]}) deg (icrs)\n"
         summary += f" - Radius: {self.sky_radius} deg\n"
         summary += f" - Blend distance: {self.blend_distance} deg\n\n"
+        summary += f" - Nearby object count radius: {self.nearby_object_count_radius_arcsec} arcsec\n\n"
         summary += f" - Survey dates (MJD): {self.survey_dates[0]} to {self.survey_dates[1]}\n"
         summary += f" - Peak range (MJD): {self.peak_range[0]} to {self.peak_range[1]}\n\n"
         summary += "Processing:\n"
@@ -250,6 +251,9 @@ class SimPipeline:
         self.sky_center = config.get("sky_center", {"l": 0.5, "b": -1.25, "frame": "galactic"})
         self.sky_radius = config.get('sky_radius', 1.75)
         self.blend_distance = config.get("blend_distance", 0.001)
+        self.nearby_object_count_radius_arcsec = float(config.get("nearby_object_count_radius_arcsec", 3.6))
+        if self.nearby_object_count_radius_arcsec < 0:
+            raise ValueError("nearby_object_count_radius_arcsec must be non-negative")
         self.log_config = config.get("logging", {})
         self.chi2_statistic = config.get("chi2_statistic", "median")
         self.init_event_id = config.get("init_event_id", 0) 
@@ -306,6 +310,8 @@ class SimPipeline:
                 "nearby_object_dec": pa.float64(),
                 "nearby_object_objId": pa.string(),
                 "nearby_object_distance": pa.float64(),
+                "nearby_object_n_within_radius": pa.int32(),
+                "nearby_object_count_radius_arcsec": pa.float32(),
                 "cadence_noise": pa.string(),
                 "peak_time": pa.float64(),
                 **{f"nearby_object_mag_{band}": pa.float64() for band in self.bands},
@@ -635,10 +641,9 @@ class SimPipeline:
     
         This function:
           1. Loads the existing events table from the Parquet file.
-          2. Queries the LSST catalog for objects near the simulation sky center.
-          3. Finds the closest object to each event based on RA/Dec coordinates.
-          4. Merges the matched objects into the events table.
-          5. Saves the updated table back to the Parquet file.
+          2. Queries the LSST Object catalog over the event region plus a count-radius margin.
+          3. Finds the closest object and counts unique ObjectIds within the configured radius.
+          4. Saves those measurements to the events table.
     
         Notes
         -----
@@ -658,12 +663,16 @@ class SimPipeline:
         events_df = pd.read_parquet(self.events_file, engine="pyarrow")
         coords_events = events_df[["ra", "dec"]].values
     
+        # Events are sampled within sky_radius; pad the query so events at the edge
+        # still have a complete neighborhood to the configured count radius.
+        count_radius_deg = self.nearby_object_count_radius_arcsec / 3600
+
         # --- Initialize LSST catalog access ---
         from ulens_lsst.lsst_data import LSSTData
         lsst_data = LSSTData(
             ra=self.sky_center["coord"][0],
             dec=self.sky_center["coord"][1],
-            radius=self.sky_radius,
+            radius=self.sky_radius + count_radius_deg,
             data_preview=self.data_preview,
             bands=self.bands,
             name=self.name
@@ -682,31 +691,51 @@ class SimPipeline:
                 columns.append(f"{band}_cModelMagErr AS mag_err_{band}")
     
         # --- Query catalog objects near the sky center ---
-        objects_data = lsst_data.load_catalog("Object", columns=columns)
-        coords_objects = objects_data[["coord_ra", "coord_dec"]].values
-    
-        # --- Find nearest catalog object for each event ---
-        idx, min_dist_arcsec, nearest_coords_deg = get_nearby_objects(coords_events, coords_objects)
-        nearby_objects = objects_data.iloc[idx].reset_index(drop=True)
-    
-        # --- Rename columns to avoid collisions ---
-        rename_map = {
-            col: (
-                f"nearby_object_{col.split('_')[-1]}" if col.startswith("coord")
-                else "nearby_object_objId" if col.startswith("Object")
-                else f"nearby_object_{col}"
+        try:
+            objects_data = lsst_data.load_catalog("Object", columns=columns)
+        except RuntimeError as exc:
+            if "No records found" not in str(exc):
+                raise
+            objects_data = pd.DataFrame()
+
+        if objects_data.empty:
+            nearby_objects = pd.DataFrame({
+                "nearby_object_objId": [None] * len(events_df),
+                "nearby_object_ra": [np.nan] * len(events_df),
+                "nearby_object_dec": [np.nan] * len(events_df),
+                "nearby_object_distance": [np.nan] * len(events_df),
+                "nearby_object_n_within_radius": np.zeros(len(events_df), dtype=np.int32),
+            })
+            for band in self.bands:
+                nearby_objects[f"nearby_object_mag_{band}"] = np.nan
+                nearby_objects[f"nearby_object_fwhm_{band}"] = np.nan
+        else:
+            coords_objects = objects_data[["coord_ra", "coord_dec"]].to_numpy()
+            idx, min_dist_arcsec, _ = get_nearby_objects(coords_events, coords_objects)
+            nearby_objects = objects_data.iloc[idx].reset_index(drop=True)
+            counts = count_objects_within_radius(
+                coords_events,
+                coords_objects,
+                self.nearby_object_count_radius_arcsec,
+                objects_data["ObjectId"].to_numpy(),
             )
-            for col in nearby_objects.columns
-        }
-        nearby_objects = nearby_objects.rename(columns=rename_map)
-        nearby_objects["nearby_object_distance"] = min_dist_arcsec
-    
-        # --- Merge objects into events table ---
+
+            rename_map = {
+                col: (
+                    f"nearby_object_{col.split('_')[-1]}" if col.startswith("coord")
+                    else "nearby_object_objId" if col.startswith("Object")
+                    else f"nearby_object_{col}"
+                )
+                for col in nearby_objects.columns
+            }
+            nearby_objects = nearby_objects.rename(columns=rename_map)
+            nearby_objects["nearby_object_distance"] = min_dist_arcsec
+            nearby_objects["nearby_object_n_within_radius"] = counts
+
+        nearby_objects["nearby_object_count_radius_arcsec"] = self.nearby_object_count_radius_arcsec
         cols_to_add = nearby_objects.columns
         events_df = events_df.drop(columns=[col for col in cols_to_add if col in events_df.columns], errors="ignore")
         events_with_objects = pd.concat([events_df.reset_index(drop=True), nearby_objects], axis=1)
-    
-        # --- Save updated table ---
         events_with_objects.to_parquet(self.events_file, index=False)
     
         self.logger.info("Ending load_nearby_objects")
