@@ -28,6 +28,7 @@ dependencies = [
     "photutils>=1.5.0",
     "pyLIMA",
     "requests>=2.25.0",
+    "pyvo>=1.5",
     "astro-datalab",
     "spherical_geometry",
     "rubin-sim>=2.3.0"

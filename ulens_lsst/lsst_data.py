@@ -40,7 +40,7 @@ from shapely.geometry import Point, Polygon
 import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
 import lsst.daf.base as dafBase
-from lsst.daf.butler import Butler
+from lsst.daf.butler import Butler, DatasetRef
 from lsst.geom import Angle, SpherePoint, degrees, Point2D, Extent2I, Point2I, Box2I
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.meas.base import SingleFrameMeasurementTask
@@ -724,7 +724,10 @@ class Calexp:
 
     def __init__(
         self,
-        data_id: Union[Dict[str, Any], "lsst.daf.butler.DatasetRef", "lsst.afw.image.ExposureF", str],
+        data_id: Union[
+            Dict[str, Any], "lsst.daf.butler.DatasetRef", "lsst.afw.image.ExposureF",
+            str, os.PathLike,
+        ],
         butler: Optional["lsst.daf.butler.Butler"] = None,
         butler_config: Optional[str] = None,
         data_preview: Optional[str] = None,
@@ -734,14 +737,15 @@ class Calexp:
         radius: float = 0.0,
         bands: Optional[List[str]] = None,
         main_path: str = ".",
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a Calexp instance.
 
         Parameters
         ----------
-        data_id : Union[dict, DatasetRef, ExposureF, str]
-            Identifier for the exposure (dict with visit/detector, DatasetRef, ExposureF, or file path).
+        data_id : Union[dict, DatasetRef, ExposureF, str, PathLike]
+            Butler data ID, DatasetRef, ExposureF, or local FITS path.
         butler : lsst.daf.butler.Butler, optional
             Butler instance; created if None.
         butler_config : str, optional
@@ -760,6 +764,8 @@ class Calexp:
             List of filter bands; defaults to ['u', 'g', 'r', 'i', 'z', 'y'].
         main_path : str, optional
             Base path for file storage (default: '.').
+        metadata : dict, optional
+            Stable source and provenance metadata for local or externally loaded images.
 
         Raises
         ------
@@ -775,6 +781,7 @@ class Calexp:
         self.collection = self.DATA_PREVIEW_SETTINGS[data_preview]["collection"]
         self.butler_config = butler_config or self.DATA_PREVIEW_SETTINGS[data_preview]["butler_config"]
         self.tap_schema = self.DATA_PREVIEW_SETTINGS[data_preview]["tap_schema"]
+        self.data_preview = data_preview
         self.name = name or "default_calexp"
         self.ra = ra
         self.dec = dec
@@ -782,26 +789,107 @@ class Calexp:
         self.bands = bands or ["u", "g", "r", "i", "z", "y"]
         self.main_path = main_path
 
-        self.butler = butler or Butler(self.butler_config, collections=self.collection)
-
+        self.metadata = dict(metadata or {})
+        self.butler = butler
         if isinstance(data_id, afwImage.ExposureF):
             self.expF = data_id
             self.data_id = {}
-        elif isinstance(data_id, dict):
-            self.data_id = data_id
-            dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
-            self.expF = self.butler.get(dataset_type, **data_id)
-        elif isinstance(data_id, str):
-            self.expF = afwImage.ExposureF(data_id)
+        elif isinstance(data_id, (str, os.PathLike)):
+            from ulens_lsst.image_access import load_fits_exposure
+
+            path = os.fspath(data_id)
+            self.expF = load_fits_exposure(path)
             self.data_id = {}
+            self.metadata.setdefault("local_path", path)
+        elif isinstance(data_id, DatasetRef):
+            self.data_id = dict(data_id.dataId)
+            self.butler = self.butler or Butler(
+                self.butler_config, collections=self.collection
+            )
+            self.expF = self.butler.get(data_id)
+        elif isinstance(data_id, dict):
+            self.data_id = dict(data_id)
+            self.butler = self.butler or Butler(
+                self.butler_config, collections=self.collection
+            )
+            dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
+            self.expF = self.butler.get(dataset_type, **self.data_id)
         else:
-            raise ValueError("data_id must be a dict, DatasetRef, ExposureF, or str")
+            raise TypeError("data_id must be a Butler data ID, DatasetRef, ExposureF, or FITS path")
 
         if self.expF is None:
             raise RuntimeError("Failed to load exposure.")
+        if not isinstance(self.expF, afwImage.ExposureF):
+            raise TypeError(f"Expected ExposureF, got {type(self.expF).__name__}")
 
         self.wcs = self.expF.getWcs()
         self.band = self.expF.getFilter().bandLabel
+
+    @classmethod
+    def from_exposure(
+        cls,
+        exposure: afwImage.ExposureF,
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> "Calexp":
+        """Wrap an in-memory ExposureF without creating a Butler."""
+        return cls(exposure, metadata=metadata, **kwargs)
+
+    @classmethod
+    def from_fits(
+        cls,
+        path: str | os.PathLike,
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> "Calexp":
+        """Load a local FITS file as ExposureF and wrap it without Butler."""
+        metadata = {"local_path": os.fspath(path), **(metadata or {})}
+        from ulens_lsst.image_access import load_fits_exposure
+
+        return cls.from_exposure(load_fits_exposure(path), metadata=metadata, **kwargs)
+
+    @classmethod
+    def from_dataset_ref(
+        cls,
+        dataset_ref: "lsst.daf.butler.DatasetRef",
+        *,
+        butler: Optional["lsst.daf.butler.Butler"] = None,
+        **kwargs: Any,
+    ) -> "Calexp":
+        """Load a Butler DatasetRef while preserving its stable ID as metadata."""
+        preview = kwargs.get("data_preview") or "dp0"
+        settings = cls.DATA_PREVIEW_SETTINGS.get(preview, cls.DATA_PREVIEW_SETTINGS["dp0"])
+        butler_config = kwargs.get("butler_config") or settings["butler_config"]
+        collection = settings["collection"]
+        butler = butler or Butler(butler_config, collections=collection)
+        exposure = butler.get(dataset_ref)
+        metadata = {
+            "stable_id": str(dataset_ref.id),
+            "dataset_type": dataset_ref.datasetType.name,
+            "data_id": dict(dataset_ref.dataId),
+            **dict(dataset_ref.dataId),
+        }
+        return cls.from_exposure(
+            exposure,
+            metadata=metadata,
+            butler=butler,
+            **kwargs,
+        )
+
+    def _default_title(self) -> str:
+        """Build a title without assuming Butler visit/detector metadata exists."""
+        if "visit" in self.data_id and "detector" in self.data_id:
+            return (
+                f"Calexp (Visit: {self.data_id['visit']}, "
+                f"Detector: {self.data_id['detector']}, Band: {self.band})"
+            )
+        stable_id = self.metadata.get("stable_id")
+        if stable_id:
+            return f"{stable_id} (Band: {self.band})"
+        local_path = self.metadata.get("local_path")
+        if local_path:
+            return f"{os.path.basename(local_path)} (Band: {self.band})"
+        return f"Calexp (Band: {self.band})"
 
     @classmethod
     def from_lsstdata(cls, lsstdata_obj: "LSSTData", data_id: Union[Dict, "lsst.daf.butler.DatasetRef"]) -> "Calexp":
@@ -976,7 +1064,13 @@ class Calexp:
         except Exception as e:
             raise RuntimeError(f"Could not create cutout: {str(e)}")
 
-        cutout = Calexp(data_id=exp, butler=self.butler, butler_config=self.butler_config)
+        cutout = Calexp.from_exposure(
+            exp,
+            metadata={**self.metadata, "is_cutout": True},
+            butler=self.butler,
+            butler_config=self.butler_config,
+            data_preview=self.data_preview,
+        )
         cutout.wcs = makeSkyWcs(
             crpix=Point2D(size.getX() / 2.0, size.getY() / 2.0),
             crval=SpherePoint(ra, dec, degrees),
@@ -1068,11 +1162,7 @@ class Calexp:
                 ax.add_patch(circle)
 
         if title is None:
-            title = (
-                f"Calexp (Visit: {self.data_id['visit']}, Detector: {self.data_id['detector']}, Band: {self.band})"
-                if isinstance(self.data_id, dict)
-                else self.data_id
-            )
+            title = self._default_title()
         ax.set_title(title)
 
         if save_path:
@@ -1235,10 +1325,13 @@ class Calexp:
         RuntimeError
             If query fails.
         """
+        visit = self.metadata.get("visit", self.data_id.get("visit"))
+        detector = self.metadata.get("detector", self.data_id.get("detector"))
+        if visit is None or detector is None:
+            raise ValueError("visit and detector metadata are required to query CcdVisit")
+
         service = get_tap_service("tap")
         full_catalog = f"{self.tap_schema}.{catalog}"
-        visit = self.data_id["visit"]
-        detector = self.data_id["detector"]
 
         query = (
             f"SELECT visitId, detector, expMidptMJD, seeing, band "

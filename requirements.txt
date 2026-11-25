@@ -6,4 +6,5 @@ tqdm>=4.65.0
 matplotlib>=3.5.0
 pyLIMA
 spherical_geometry
+pyvo>=1.5
 dl
