@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from astropy.io.votable import from_table, writeto
@@ -420,6 +421,27 @@ class TestButlerAccess(unittest.TestCase):
         )
         self.assertIs(result, exposure)
         butler.get.assert_called_once_with("visit_image", visit=10, detector=2)
+
+    def test_butler_data_coordinate_mapping_becomes_serializable_descriptor(self):
+        ref = SimpleNamespace(
+            id="uuid-123",
+            dataId=SimpleNamespace(mapping={
+                "instrument": "LSSTComCam", "visit": 10, "detector": 2,
+                "band": "r", "physical_filter": "r_03",
+            }),
+            run="LSSTComCam/DP1",
+        )
+        butler = Mock()
+        butler.query_datasets.return_value = [ref]
+        access = ButlerImageAccess(data_preview="dp1", butler=butler)
+
+        product = access.find_exposures(region=(10, -20, 0.1), bands=["r"])[0]
+
+        self.assertEqual(product.stable_id, "uuid-123")
+        self.assertEqual(product.visit, 10)
+        self.assertEqual(product.data_id["detector"], 2)
+        self.assertEqual(product.data_id["physical_filter"], "r_03")
+        self.assertEqual(ImageProduct.from_dict(product.to_json()), product)
 
     def test_butler_loader_rejects_non_exposure(self):
         butler = Mock()

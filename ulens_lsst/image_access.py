@@ -167,6 +167,12 @@ def _optional_int(value: Any) -> Optional[int]:
     return int(value)
 
 
+def data_id_to_dict(data_id: Any) -> dict[str, Any]:
+    """Convert Butler DataCoordinate mappings or plain mappings to serializable IDs."""
+    mapping = getattr(data_id, "mapping", data_id)
+    return {str(key): _plain_value(value) for key, value in mapping.items()}
+
+
 def _footprint_overlaps_region(
     footprint: Any, region: Sequence[float]
 ) -> bool:
@@ -787,7 +793,7 @@ class ButlerImageAccess:
         )
         products = []
         for ref in refs:
-            data_id = {str(key): _plain_value(value) for key, value in ref.dataId.items()}
+            data_id = data_id_to_dict(ref.dataId)
             stable_id = str(ref.id)
             products.append(
                 ImageProduct(

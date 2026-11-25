@@ -355,10 +355,15 @@ class LSSTData:
         if self._image_access is None:
             from ulens_lsst.image_access import make_image_access
 
+            butler = (
+                self.butler
+                if self.image_access_config.get("backend", "butler") == "butler"
+                else None
+            )
             self._image_access = make_image_access(
                 self.image_access_config,
                 data_preview=self.data_preview,
-                butler=self._butler,
+                butler=butler,
                 cache_dir=self.image_cache_dir,
             )
         return self._image_access
@@ -869,7 +874,8 @@ class Calexp:
             self.data_id = {}
             self.metadata.setdefault("local_path", path)
         elif isinstance(data_id, DatasetRef):
-            self.data_id = dict(data_id.dataId)
+            coordinate = data_id.dataId
+            self.data_id = dict(getattr(coordinate, "mapping", coordinate))
             self.butler = self.butler or Butler(
                 self.butler_config, collections=self.collection
             )
@@ -933,8 +939,8 @@ class Calexp:
         metadata = {
             "stable_id": str(dataset_ref.id),
             "dataset_type": dataset_ref.datasetType.name,
-            "data_id": dict(dataset_ref.dataId),
-            **dict(dataset_ref.dataId),
+            "data_id": dict(getattr(dataset_ref.dataId, "mapping", dataset_ref.dataId)),
+            **dict(getattr(dataset_ref.dataId, "mapping", dataset_ref.dataId)),
         }
         return cls.from_exposure(
             exposure,
