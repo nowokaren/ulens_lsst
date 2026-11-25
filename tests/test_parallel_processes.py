@@ -61,6 +61,26 @@ class TestPipelineProcessConfiguration(unittest.TestCase):
 
         self.assertEqual(sim.n_processes, 1)
 
+    def test_legacy_lsst_config_defaults_to_butler_image_access(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self._write_config(
+                tmp, sim_type="lsst_images", lsst_images={"data_preview": "dp1"}
+            )
+            sim = SimPipeline(str(config_path), setup_dir=False)
+
+        self.assertEqual(sim.image_access_config, {"backend": "butler"})
+
+    def test_invalid_tap_image_config_fails_during_pipeline_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self._write_config(
+                tmp,
+                sim_type="lsst_images",
+                lsst_images={"data_preview": "dp1"},
+                image_access={"backend": "tap", "collection": "LSST.DP1"},
+            )
+            with self.assertRaisesRegex(ValueError, "product_subtype is required"):
+                SimPipeline(str(config_path), setup_dir=False)
+
     def test_missing_or_null_worker_count_preserves_historical_default(self):
         for configured_value in ("missing", None):
             with self.subTest(configured_value=configured_value):

@@ -7,15 +7,22 @@ from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from io import BytesIO
 import json
+import math
 import os
+import re
 from pathlib import Path
 import tempfile
 from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import urljoin
 
+import numpy as np
+
 DEFAULT_TAP_URL = "https://data.lsst.cloud/api/tap"
 DEFAULT_DATALINK_URL = "https://data.lsst.cloud/api/datalink"
 DEFAULT_TOKEN_PATH = Path.home() / ".rsp-tap.token"
+# DP1 visit-image detectors are about 0.23 deg across; the margin bounds the
+# TAP center preselection before exact client-side footprint/circle intersection.
+DP1_MAX_IMAGE_CENTER_OFFSET_DEG = 0.25
 
 DATA_PREVIEW_IMAGE_SETTINGS = {
     "dp0": {
@@ -45,7 +52,13 @@ class ImageProduct:
     visit: Optional[int] = None
     detector: Optional[int] = None
     band: Optional[str] = None
-    exp_midpoint_mjd: Optional[float] = None
+    expMidptMJD: Optional[float] = None
+    t_min: Optional[float] = None
+    t_max: Optional[float] = None
+    obscore_midpoint_mjd: Optional[float] = None
+    seeing: Optional[float] = None
+    psfSigma: Optional[float] = None
+    magLim: Optional[float] = None
     datalink_url: Optional[str] = None
     dataset_type: Optional[str] = None
     data_id: Optional[dict[str, Any]] = None
@@ -64,7 +77,25 @@ class ImageProduct:
         if isinstance(value, str):
             value = json.loads(value)
         fields = cls.__dataclass_fields__
-        return cls(**{key: val for key, val in value.items() if key in fields})
+        values = {key: val for key, val in value.items() if key in fields}
+        for key in ("data_id", "metadata"):
+            item = values.get(key)
+            if isinstance(item, str):
+                values[key] = json.loads(item)
+        for key, item in values.items():
+            if isinstance(item, float) and math.isnan(item):
+                values[key] = None
+        for key in ("visit", "detector"):
+            if values.get(key) is not None:
+                values[key] = int(values[key])
+        return cls(**values)
+
+    def to_record(self) -> dict[str, Any]:
+        """Return a flat CSV-safe record for catalogs and worker inputs."""
+        record = self.to_dict()
+        record["data_id"] = json.dumps(record["data_id"], sort_keys=True)
+        record["metadata"] = json.dumps(record["metadata"], sort_keys=True, default=_json_default)
+        return record
 
 
 def _json_default(value: Any) -> Any:
@@ -98,6 +129,19 @@ def _text(value: Any) -> str:
     return str(value)
 
 
+def _http_failure(exc: Exception, operation: str) -> RuntimeError:
+    """Describe an HTTP failure without copying a possibly signed URL to logs."""
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is None:
+        match = re.search(r"\b([45]\d\d)\b", str(exc))
+        status = match.group(1) if match else None
+    message = f"{operation} failed" + (f" (HTTP {status})" if status else "")
+    error = RuntimeError(message)
+    error.response = response
+    return error
+
+
 def _adql_string(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
@@ -107,6 +151,70 @@ def _validate_limit(limit: Optional[int]) -> None:
         isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0
     ):
         raise ValueError("limit must be a positive integer or None")
+
+
+def _optional_number(value: Any) -> Optional[float]:
+    value = _plain_value(value)
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return float(value)
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    value = _plain_value(value)
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return int(value)
+
+
+def _footprint_overlaps_region(
+    footprint: Any, region: Sequence[float]
+) -> bool:
+    """Test a DP1 ObsCore ICRS polygon against a circular sky region."""
+    from astropy.coordinates import SkyCoord
+    from astropy import units as u
+    from shapely.geometry import Point, Polygon
+
+    ra, dec, radius = _validate_region(region)
+    parts = str(footprint).split()
+    if len(parts) < 8 or parts[:2] != ["POLYGON", "ICRS"]:
+        raise ValueError(f"Unsupported or missing DP1 ObsCore footprint: {footprint!r}")
+    coordinates = np.asarray(parts[2:], dtype=float).reshape(-1, 2)
+    center = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
+    vertices = SkyCoord(ra=coordinates[:, 0] * u.deg, dec=coordinates[:, 1] * u.deg, frame="icrs")
+    east, north = center.spherical_offsets_to(vertices)
+    polygon = Polygon(np.column_stack((east.to_value(u.deg), north.to_value(u.deg))))
+    return polygon.intersects(Point(0, 0).buffer(radius, quad_segs=256))
+
+
+def image_product_from_record(
+    record: Mapping[str, Any], *, data_preview: str = "dp0"
+) -> ImageProduct:
+    """Rebuild an image descriptor from a CSV row, including v1.0.2 rows."""
+    backend = record.get("backend")
+    if backend is None or (isinstance(backend, float) and math.isnan(backend)):
+        settings = DATA_PREVIEW_IMAGE_SETTINGS[data_preview]
+        data_id = {
+            key: _optional_int(record.get(key))
+            for key in ("visit", "detector")
+            if record.get(key) is not None
+        }
+        return ImageProduct(
+            backend="butler",
+            stable_id=f"legacy:{data_preview}:{data_id.get('visit')}:{data_id.get('detector')}",
+            collection=settings["collection"],
+            product_type=settings["dataset_type"],
+            visit=data_id.get("visit"),
+            detector=data_id.get("detector"),
+            band=record.get("band"),
+            expMidptMJD=_optional_number(record.get("expMidptMJD")),
+            psfSigma=_optional_number(record.get("psfSigma")),
+            seeing=_optional_number(record.get("seeing")),
+            magLim=_optional_number(record.get("magLim")),
+            dataset_type=settings["dataset_type"],
+            data_id=data_id,
+        )
+    return ImageProduct.from_dict(record)
 
 
 def _validate_region(region: Optional[Sequence[float]]) -> Optional[tuple[float, float, float]]:
@@ -126,13 +234,25 @@ def make_tap_service(
     token_path: str | Path = DEFAULT_TOKEN_PATH,
     tap_url: str = DEFAULT_TAP_URL,
     *,
+    auth: str = "rsp",
     session: Any = None,
 ) -> tuple[Any, Any]:
-    """Create an authenticated PyVO TAP service and its DataLink session.
+    """Create a TAP service using RSP authentication or an external token file.
 
-    Pass ``session`` in tests or when the caller owns authentication. Token contents
-    are read only when needed and are never logged or written by this function.
+    Pass an existing service/session when available. Token contents are read only
+    for ``auth='token'`` and are never logged or written by this function.
     """
+    if auth not in {"rsp", "token"}:
+        raise ValueError("image_access.auth must be 'rsp' or 'token'")
+    if session is None and auth == "rsp":
+        from lsst.rsp import get_tap_service
+
+        service = get_tap_service("tap")
+        session = getattr(service, "_session", None)
+        if session is None:
+            raise RuntimeError("Rubin TAP service did not expose an authenticated HTTP session")
+        return service, session
+
     from pyvo.dal import TAPService
     from pyvo.auth import AuthSession, securitymethods
 
@@ -157,6 +277,8 @@ def find_tap_images(
     obs_collection: str = "LSST.DP1",
     product_subtype: str = "lsst.visit_image",
     obs_id: Optional[str] = None,
+    visit: Optional[int] = None,
+    detector: Optional[int] = None,
     region: Optional[Sequence[float]] = None,
     bands: Optional[Sequence[str]] = None,
     limit: Optional[int] = 100,
@@ -171,10 +293,15 @@ def find_tap_images(
     ]
     if obs_id is not None:
         conditions.append(f"obs_id = {_adql_string(obs_id)}")
+    if visit is not None:
+        conditions.append(f"lsst_visit = {int(visit)}")
+    if detector is not None:
+        conditions.append(f"lsst_detector = {int(detector)}")
     if region is not None:
         ra, dec, radius = region
         conditions.append(
-            f"1 = INTERSECTS(s_region, CIRCLE('ICRS', {ra}, {dec}, {radius}))"
+            f"1 = CONTAINS(POINT('ICRS', s_ra, s_dec), "
+            f"CIRCLE('ICRS', {ra}, {dec}, {radius}))"
         )
     if bands:
         conditions.append(
@@ -211,7 +338,10 @@ def resolve_datalink_product(
     from astropy.io.votable import parse_single_table
 
     response = session.get(str(datalink_url))
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except Exception as exc:
+        raise _http_failure(exc, "DataLink request") from None
     content_type = response.headers.get("Content-Type", "").lower()
     if content_type and "votable" not in content_type and "xml" not in content_type:
         raise ValueError(f"DataLink response is not a VOTable: {content_type}")
@@ -241,8 +371,15 @@ def resolve_datalink_product(
 
     row = table[matches[0]]
     product = {column: _plain_value(row[column]) for column in table.colnames}
+    product_type = product.get("content_type")
+    if product_type and "fits" not in str(product_type).lower():
+        raise ValueError(
+            f"DataLink #this product is not FITS: content_type={product_type!r}"
+        )
     product_url = _text(product["access_url"])
     product["access_url"] = urljoin(response.url or str(datalink_url), product_url)
+    if hasattr(response, "close"):
+        response.close()
     return product
 
 
@@ -286,7 +423,10 @@ def download_tap_image(
         response = None
         try:
             response = session.get(str(url), stream=True)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception as exc:
+                raise _http_failure(exc, "DataLink image download") from None
             response_type = response.headers.get("Content-Type", "").lower()
             if "text/html" in response_type:
                 raise ValueError("DataLink download returned HTML instead of a FITS product")
@@ -393,15 +533,26 @@ class TapImageAccess:
         product_subtype: str = "lsst.visit_image",
         token_path: str | Path = DEFAULT_TOKEN_PATH,
         tap_url: str = DEFAULT_TAP_URL,
+        auth: str = "rsp",
         service: Any = None,
         session: Any = None,
         cache_dir: Optional[str | Path] = None,
     ):
+        if not collection:
+            raise ValueError("image_access.collection is required for TAP")
+        if not product_subtype:
+            raise ValueError("image_access.product_subtype is required for TAP")
+        if auth not in {"rsp", "token"}:
+            raise ValueError("image_access.auth must be 'rsp' or 'token'")
         self.collection = collection
         self.product_subtype = product_subtype
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir is not None else None
         if service is None:
-            service, session = make_tap_service(token_path, tap_url, session=session)
+            service, session = make_tap_service(
+                token_path, tap_url, auth=auth, session=session
+            )
+        elif session is None:
+            session = getattr(service, "_session", None)
         self.service = service
         self.session = session
 
@@ -411,17 +562,51 @@ class TapImageAccess:
         region: Optional[Sequence[float]] = None,
         bands: Optional[Sequence[str]] = None,
         obs_id: Optional[str] = None,
+        visit: Optional[int] = None,
+        detector: Optional[int] = None,
         limit: Optional[int] = 100,
     ) -> list[ImageProduct]:
+        _validate_limit(limit)
+        query_region = region
+        if region is not None:
+            ra, dec, radius = _validate_region(region)
+            query_region = (
+                ra,
+                dec,
+                radius + DP1_MAX_IMAGE_CENTER_OFFSET_DEG,
+            )
         rows = find_tap_images(
             self.service,
             obs_collection=self.collection,
             product_subtype=self.product_subtype,
             obs_id=obs_id,
-            region=region,
+            visit=visit,
+            detector=detector,
+            region=query_region,
             bands=bands,
-            limit=limit,
+            limit=None if region is not None else limit,
         )
+        if region is not None:
+            rows = [
+                row for row in rows
+                if _footprint_overlaps_region(row.get("s_region"), region)
+            ]
+            if limit is not None:
+                rows = rows[:limit]
+        visit_ids = sorted({int(row["lsst_visit"]) for row in rows if row.get("lsst_visit") is not None})
+        ccd_visit = {}
+        if visit_ids:
+            visit_values = ", ".join(map(str, visit_ids))
+            ccd_rows = self.service.search(
+                "SELECT visitId, detector, expMidptMJD, psfSigma, seeing, magLim, band "
+                f"FROM dp1.CcdVisit WHERE visitId IN ({visit_values})"
+            ).to_table()
+            ccd_visit = {
+                (int(row["visitId"]), int(row["detector"])): {
+                    key: _plain_value(row[key]) for key in ccd_rows.colnames
+                }
+                for row in ccd_rows
+            }
         products = []
         for row in rows:
             collection = _text(row["obs_collection"])
@@ -433,11 +618,21 @@ class TapImageAccess:
                 _text(publisher_id)
                 if publisher_id
                 else f"{collection}:{obs_id_value}:{subtype}:"
-                f"{sha256(datalink_url.encode()).hexdigest()[:16]}"
+                f"{row.get('lsst_visit')}:{row.get('lsst_detector')}"
             )
-            time_mid = None
-            if row.get("t_min") is not None and row.get("t_max") is not None:
-                time_mid = (float(row["t_min"]) + float(row["t_max"])) / 2
+            visit = _optional_int(row.get("lsst_visit"))
+            detector = _optional_int(row.get("lsst_detector"))
+            ccd = ccd_visit.get((visit, detector))
+            if ccd is None:
+                raise LookupError(
+                    f"No dp1.CcdVisit row for visit={visit}, detector={detector} "
+                    f"(ObsCore product {stable_id!r})"
+                )
+            t_min = _optional_number(row.get("t_min"))
+            t_max = _optional_number(row.get("t_max"))
+            obs_midpoint = (
+                (t_min + t_max) / 2 if t_min is not None and t_max is not None else None
+            )
             products.append(
                 ImageProduct(
                     backend="tap",
@@ -449,10 +644,16 @@ class TapImageAccess:
                     obs_publisher_did=(
                         _text(publisher_id) if publisher_id is not None else None
                     ),
-                    visit=row.get("lsst_visit", row.get("visit")),
-                    detector=row.get("lsst_detector", row.get("detector")),
-                    band=row.get("lsst_band", row.get("em_filter")),
-                    exp_midpoint_mjd=row.get("exp_midpoint_mjd", time_mid),
+                    visit=visit,
+                    detector=detector,
+                    band=row.get("lsst_band"),
+                    expMidptMJD=_optional_number(ccd.get("expMidptMJD")),
+                    t_min=t_min,
+                    t_max=t_max,
+                    obscore_midpoint_mjd=obs_midpoint,
+                    seeing=_optional_number(ccd.get("seeing")),
+                    psfSigma=_optional_number(ccd.get("psfSigma")),
+                    magLim=_optional_number(ccd.get("magLim")),
                     datalink_url=datalink_url,
                     local_path=None,
                     metadata={
@@ -463,6 +664,8 @@ class TapImageAccess:
                             "dataproduct_type", "dataproduct_subtype", "access_url",
                             "lsst_band", "lsst_visit", "lsst_detector", "lsst_filter",
                             "em_filter", "visit", "detector", "exp_midpoint_mjd",
+                            "expMidptMJD", "t_min", "t_max", "psfSigma", "seeing",
+                            "magLim",
                         }
                     },
                 )
@@ -622,8 +825,11 @@ def make_image_access(
 ) -> ButlerImageAccess | TapImageAccess:
     """Construct the configured image backend; Butler remains the legacy default."""
     config = dict(config or {})
+    validate_image_access_config(config, data_preview=data_preview)
     backend = config.get("backend", "butler")
     if backend == "butler":
+        if data_preview not in DATA_PREVIEW_IMAGE_SETTINGS:
+            raise ValueError(f"Unsupported data_preview: {data_preview!r}")
         return ButlerImageAccess(
             data_preview=data_preview,
             collection=config.get("collection"),
@@ -634,13 +840,41 @@ def make_image_access(
     if backend == "tap":
         if data_preview != "dp1":
             raise ValueError("TAP image access is currently validated only for DP1")
+        collection = config.get("collection")
+        product_subtype = config.get("product_subtype")
+        auth = config.get("auth", "rsp")
         return TapImageAccess(
-            collection=config.get("collection", "LSST.DP1"),
-            product_subtype=config.get("product_subtype", "lsst.visit_image"),
+            collection=collection,
+            product_subtype=product_subtype,
             token_path=config.get("token_path", DEFAULT_TOKEN_PATH),
             tap_url=config.get("tap_url", DEFAULT_TAP_URL),
+            auth=auth,
             service=service,
             session=session,
             cache_dir=cache_dir,
         )
     raise ValueError(f"Unknown image_access.backend {backend!r}; choose 'butler' or 'tap'")
+
+
+def validate_image_access_config(
+    config: Optional[Mapping[str, Any]], *, data_preview: str
+) -> None:
+    """Validate serializable backend settings without opening a service or Butler."""
+    config = dict(config or {})
+    backend = config.get("backend", "butler")
+    if backend == "butler":
+        if data_preview not in DATA_PREVIEW_IMAGE_SETTINGS:
+            raise ValueError(f"Unsupported data_preview: {data_preview!r}")
+        return
+    if backend != "tap":
+        raise ValueError(f"Unknown image_access.backend {backend!r}; choose 'butler' or 'tap'")
+    if data_preview != "dp1":
+        raise ValueError("TAP image access is currently validated only for DP1")
+    if not config.get("collection"):
+        raise ValueError("image_access.collection is required for TAP")
+    if not config.get("product_subtype"):
+        raise ValueError("image_access.product_subtype is required for TAP")
+    if config.get("auth", "rsp") not in {"rsp", "token"}:
+        raise ValueError("image_access.auth must be 'rsp' or 'token'")
+    if config.get("auth") == "token" and not config.get("token_path", DEFAULT_TOKEN_PATH):
+        raise ValueError("image_access.token_path is required when auth='token'")

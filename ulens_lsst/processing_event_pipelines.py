@@ -38,6 +38,7 @@ from regions import CircleSkyRegion
 # Local imports
 from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
+from ulens_lsst.image_access import image_product_from_record, make_image_access
 try:
     from ulens_lsst.lsst_data import LSSTData, Calexp
     from ulens_lsst.lsst_tools import LSSTTools
@@ -676,9 +677,9 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
     calexp_id = row.name
     try:
         logger.info(f"Calexp {calexp_id}: Loading calexp")
-        data_id = {"visit": row["visit"], "detector": row["detector"]}
-        calexp = Calexp(data_id, data_preview=config["data_preview"])
+        calexp = _load_worker_calexp(row, config)
     except Exception as e:
+        data_id = {"visit": row.get("visit"), "detector": row.get("detector")}
         logger.error(f"Calexp {calexp_id}: Failed loading calexp. {traceback.format_exc()}")
         return {
             "calexp_id": calexp_id,
@@ -800,6 +801,27 @@ def LSST_synthetic_photometry(row: pd.Series, config: Dict[str, Any]) -> Dict[st
     
     logger.info(f"Calexp {calexp_id}: End")
     return {"calexp_id": calexp_id, "status": "success", "error": ""}
+
+
+def _load_worker_calexp(row: pd.Series, config: Dict[str, Any]) -> Calexp:
+    """Load an exposure from a serializable catalog row inside its worker."""
+    product = image_product_from_record(row.to_dict(), data_preview=config["data_preview"])
+    access = config.get("_image_access")
+    if access is None:
+        access = make_image_access(
+            config.get("image_access"),
+            data_preview=config["data_preview"],
+            cache_dir=config.get("image_cache_dir"),
+        )
+        # The row processor handles a chunk serially, so this backend is reused
+        # for the remaining rows in that worker task without crossing processes.
+        config["_image_access"] = access
+    exposure = access.load_exposure(product)
+    return Calexp.from_exposure(
+        exposure,
+        metadata=product.to_dict(),
+        data_preview=config["data_preview"],
+    )
     
 
 def compute_chi2(row: pd.Series, config: Dict[str, Any]) -> Dict[str, Any]:

@@ -96,6 +96,8 @@ def plot_event_fov(
         dec=event.dec,
         radius=radius_arcsec / 3600,
         data_preview=sim.data_preview,
+        image_access=sim.image_access_config,
+        image_cache_dir=sim.image_cache_dir,
         bands=bands,
         name=sim.name,
         main_path=sim.main_path,
@@ -158,7 +160,7 @@ def plot_event_fov(
 
             calexp_id = phot_data["calexp_id"]
             calexp_data = calexps.loc[calexp_id]
-            calexp = Calexp(data_id=calexp_data[["visit", "detector"]].to_dict(), data_preview=sim.data_preview)
+            calexp = lsst_data.load_calexp(dataset_ref=calexp_data.to_dict())
             tools = LSSTTools(calexp)
             injection_catalog = tools.create_injection_catalog(
                 ra_values=[event.ra],
@@ -297,6 +299,8 @@ def plot_sky_map(
         ).icrs.dec
         radius = sim.sky_radius * u.deg
         data_preview = sim.data_preview
+        image_access_config = sim.image_access_config
+        image_cache_dir = sim.image_cache_dir
         name = sim.name
         DE = pd.read_parquet(sim.events_file)
         frame0 = sim.sky_center["frame"]
@@ -305,13 +309,18 @@ def plot_sky_map(
         frame0 = "icrs"
         name = f"Region {circle_region}"
         DE = pd.DataFrame(columns=["ra", "dec"])
+        image_access_config = {"backend": "butler"}
+        image_cache_dir = None
     else:
         raise ValueError("Either sim_name or circle_region must be provided.")
 
     center = SkyCoord(ra=ra0, dec=dec0, frame=frame0).icrs
     circle = center.directional_offset_by(np.linspace(0, 360, 200) * u.deg, radius)
 
-    lsst_data = LSSTData(ra=ra0.value, dec=dec0.value, data_preview=data_preview, radius=radius.value, name=name)
+    lsst_data = LSSTData(
+        ra=ra0.value, dec=dec0.value, data_preview=data_preview, radius=radius.value,
+        name=name, image_access=image_access_config, image_cache_dir=image_cache_dir,
+    )
     sources = lsst_data.load_catalog("Object")
 
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -323,7 +332,7 @@ def plot_sky_map(
     if n_calexps > 0 and sim_name:
         calexps = pd.read_csv(os.path.join(sim.output_dir, "data_calexps.csv")).head(n_calexps)
         for _, data in calexps.iterrows():
-            calexp = Calexp(data[["visit", "detector"]].to_dict(), data_preview=data_preview)
+            calexp = lsst_data.load_calexp(dataset_ref=data.to_dict())
             polygon = Polygon(zip(*calexp.get_corners()))
             x, y = polygon.exterior.xy
             ax.fill(x, y, alpha=0.2, fc="lightblue", ec="blue", label="calexp" if _ == 0 else None)
@@ -392,6 +401,15 @@ def event_gif(
     calexps = pd.read_csv(os.path.join(sim.output_dir, "data_calexps.csv"))
 
     event = Event.from_parquet(event_id, calexps_photometry_file, events_file)
+    image_data = LSSTData(
+        ra=event.ra,
+        dec=event.dec,
+        data_preview=sim.data_preview,
+        name=sim.name,
+        main_path=sim.main_path,
+        image_access=sim.image_access_config,
+        image_cache_dir=sim.image_cache_dir,
+    )
     phot_data = event.photometry[event.photometry["band"] == band]
     if phot_data.empty:
         raise ValueError(f"No photometry data found for band {band}")
@@ -425,7 +443,7 @@ def event_gif(
 
         calexp_id = phot_row.calexp_id
         calexp_data = calexps.loc[calexp_id]
-        calexp = Calexp(data_id=calexp_data[["visit", "detector"]].to_dict(), data_preview=sim.data_preview)
+        calexp = image_data.load_calexp(dataset_ref=calexp_data.to_dict())
         tools = LSSTTools(calexp)
         injection_catalog = tools.create_injection_catalog(
             ra_values=[event.ra],

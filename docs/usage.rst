@@ -118,6 +118,47 @@ setting alone guarantees that threaded numerical libraries use only one thread.
 If those libraries use threads, control them separately through their documented
 environment variables and record those settings with the run.
 
+Image access backends
+--------------------
+
+Image retrieval is selected independently from ``data_preview``. Existing
+configurations without an ``image_access`` block continue to use Butler. TAP
+image access is currently validated for DP1 ``lsst.visit_image`` products:
+
+.. code-block:: yaml
+
+   lsst_images:
+     data_preview: dp1
+   image_access:
+     backend: tap
+     auth: rsp
+     collection: LSST.DP1
+     product_subtype: lsst.visit_image
+
+Use ``auth: rsp`` inside Rubin Science Platform. For an external authenticated
+session, use ``auth: token`` and provide ``token_path``; the configuration stores
+only the path, never the token. The worker receives the serializable settings and
+reconstructs its local TAP service and HTTP session.
+
+Each saved exposure row contains the stable ``obs_publisher_did``, its original
+DataLink URL, and the visit/detector/band association. The final ``#this`` URL is
+resolved near download time and is not persisted. ``expMidptMJD`` comes from the
+matching ``CcdVisit`` row; ``t_min``, ``t_max``, and ``obscore_midpoint_mjd`` are
+kept separately from ObsCore. For the checked DP1 product these midpoint values
+differed; no cause is inferred from that one observation.
+
+The DP1 TAP service does not support ADQL ``INTERSECTS``. Discovery uses a
+0.25-degree center preselection margin, then checks the returned ObsCore polygon
+against the requested circle locally. The margin covers the checked DP1 detector
+footprint (about 0.23 degrees across); it only broadens the candidate query, while
+the local footprint test applies the requested region.
+
+DP1 ``seeing`` is published in arcseconds as the mean measured FWHM of the PSF.
+``psfSigma`` is a separate quantity in pixels: the PSF model second-moments
+determinant radius at the chip center. The pipeline preserves both fields without
+converting one into the other. The legacy ``region_sky.LSSTDataLoader`` remains a
+Butler-backed path outside the image-access integration described here.
+
 Concurrency and output limits
 -----------------------------
 

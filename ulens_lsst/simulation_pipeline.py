@@ -43,6 +43,7 @@ from ulens_lsst.catalogs_utils import Catalog
 from ulens_lsst.light_curves import Event
 from ulens_lsst.parallel_utils import ParallelProcessor
 from ulens_lsst.processing_event_pipelines import process_cte_event, process_ulens_event, process_SNANA_ulens_event, compute_chi2, LSST_synthetic_photometry, process_ulens_event_rubin_sim
+from ulens_lsst.image_access import validate_image_access_config
 from ulens_lsst.region_sky import SkyRegion
 from ulens_lsst.utils import setup_logger, get_nearby_objects, count_objects_within_radius, sky_catalog_query
 
@@ -177,7 +178,8 @@ class SimPipeline:
         summary += f" - Bands: {', '.join(self.bands)}\n"
         summary += f" - Simulation type: {self.sim_type}\n"
         if self.sim_type == "lsst_images":
-            summary += f" - Data Preview: {self.data_preview}\n\n"
+            summary += f" - Data Preview: {self.data_preview}\n"
+            summary += f" - Image backend: {self.image_access_config.get('backend', 'butler')}\n\n"
         elif self.sim_type == "rubin_sim":
             summary += f" - OpSim version: {self.opsim_version}\n"
             summary += f" - Use OpSim noise: {self.opsim_noise}\n"
@@ -250,6 +252,11 @@ class SimPipeline:
         self.max_temp_files = config.get("max_temp_files", 10000)
         self.sim_type = config.get("sim_type", "ideal")
         self.data_preview = config.get("lsst_images", {}).get("data_preview", "dp0")
+        self.image_access_config = dict(config.get("image_access", {"backend": "butler"}))
+        if self.sim_type == "lsst_images":
+            validate_image_access_config(
+                self.image_access_config, data_preview=self.data_preview
+            )
         self.max_load_calexps = config.get("lsst_images", {}).get("max_load_calexps", None)
         self.opsim_version = config.get("opsim", {}).get("opsim_version", "baseline")
         self.opsim_noise = config.get("opsim", {}).get("opsim_noise", False)
@@ -392,6 +399,7 @@ class SimPipeline:
 
         self.output_dir = os.path.join(self.main_path, self.name)
         os.makedirs(self.output_dir, exist_ok=True)
+        self.image_cache_dir = os.path.join(self.output_dir, "image_cache")
         os.makedirs(os.path.join(self.output_dir, "analysis"), exist_ok=True)
         os.makedirs(os.path.join(self.output_dir, "event_plots"), exist_ok=True)
         self.temp_dir = os.path.join(self.output_dir, "temp")
@@ -562,6 +570,10 @@ class SimPipeline:
                 ).icrs.dec.deg,
                 radius=self.sky_radius,
                 data_preview=self.data_preview,
+                image_access=self.image_access_config,
+                image_cache_dir=getattr(
+                    self, "image_cache_dir", os.path.join(self.output_dir, "image_cache")
+                ),
                 name=self.name,
                 main_path=self.main_path,
             )
@@ -1102,6 +1114,10 @@ class SimPipeline:
                 "events_data": events_data,
                 "calexps_photometry_schema": self.calexps_photometry_schema,
                 "data_preview": self.data_preview,
+                "image_access": self.image_access_config,
+                "image_cache_dir": getattr(
+                    self, "image_cache_dir", os.path.join(self.output_dir, "image_cache")
+                ),
                 "log_name": self.log_config["log_name"],
             },
             chunk_size=chunk_size,

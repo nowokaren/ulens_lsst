@@ -41,11 +41,10 @@ import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
 import lsst.daf.base as dafBase
 from lsst.daf.butler import Butler, DatasetRef
-from lsst.geom import Angle, SpherePoint, degrees, Point2D, Extent2I, Point2I, Box2I
+from lsst.geom import SpherePoint, degrees, Point2D, Extent2I, Point2I, Box2I
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.meas.base import SingleFrameMeasurementTask
 from lsst.rsp import get_tap_service
-from lsst.sphgeom import Region
 from lsst.afw.geom import makeSkyWcs
 
 
@@ -221,6 +220,7 @@ class LSSTData:
             "magLim",
             "pixelScale",
             "psfSigma",
+            "seeing",
             "zeroPoint",
         ],
     }
@@ -275,6 +275,8 @@ class LSSTData:
         bands: List[str] = ["u", "g", "r", "i", "z", "y"],
         name: Optional[str] = None,
         main_path: str = "./runs",
+        image_access: Optional[Dict[str, Any]] = None,
+        image_cache_dir: Optional[str] = None,
     ):
         """
         Initialize the LSSTData class.
@@ -328,14 +330,38 @@ class LSSTData:
         self.radius = float(radius)
         self.bands = bands
         self.data_preview = data_preview
+        self.image_access_config = dict(image_access or {"backend": "butler"})
+        self.image_cache_dir = image_cache_dir
         self.area = np.pi * self.radius**2
         self.catalogs = {}
         self.calexps_data = None
         self.datasetRefs = None
         self.epochs = None
         self.survey_dates = None
-        self.butler = Butler(self.butler_config, collections=self.collection)
+        self._butler = None
+        self._image_access = None
         self._setup_region()
+
+    @property
+    def butler(self):
+        """Create Butler only when a catalog or legacy image operation needs it."""
+        if self._butler is None:
+            self._butler = Butler(self.butler_config, collections=self.collection)
+        return self._butler
+
+    @property
+    def image_access(self):
+        """Configured image backend, initialized on first image operation."""
+        if self._image_access is None:
+            from ulens_lsst.image_access import make_image_access
+
+            self._image_access = make_image_access(
+                self.image_access_config,
+                data_preview=self.data_preview,
+                butler=self._butler,
+                cache_dir=self.image_cache_dir,
+            )
+        return self._image_access
 
     def _setup_region(self) -> None:
         """Set up the sky region for source and calexp queries."""
@@ -562,8 +588,41 @@ class LSSTData:
             If neither visit/detector nor dataset_ref is provided.
         """
         if dataset_ref is not None:
+            if hasattr(dataset_ref, "backend") or isinstance(dataset_ref, dict):
+                from ulens_lsst.image_access import image_product_from_record
+
+                product = (
+                    dataset_ref
+                    if hasattr(dataset_ref, "backend")
+                    else image_product_from_record(dataset_ref, data_preview=self.data_preview)
+                )
+                exposure = self.image_access.load_exposure(product)
+                return Calexp.from_exposure(
+                    exposure,
+                    metadata=product.to_dict(),
+                    data_preview=self.data_preview,
+                    butler=self._butler,
+                    butler_config=self.butler_config,
+                )
             data_id = {"visit": dataset_ref.dataId["visit"], "detector": dataset_ref.dataId["detector"]}
         elif visit is not None and detector is not None:
+            if self.image_access_config.get("backend", "butler") == "tap":
+                products = self.image_access.find_exposures(
+                    visit=int(visit), detector=int(detector), limit=2
+                )
+                if len(products) != 1:
+                    raise LookupError(
+                        f"Expected one TAP image for visit={visit}, detector={detector}; "
+                        f"found {len(products)}"
+                    )
+                product = products[0]
+                exposure = self.image_access.load_exposure(product)
+                return Calexp.from_exposure(
+                    exposure,
+                    metadata=product.to_dict(),
+                    data_preview=self.data_preview,
+                    butler_config=self.butler_config,
+                )
             data_id = {"visit": visit, "detector": detector}
         else:
             raise ValueError("Must provide either visit and detector or dataset_ref.")
@@ -588,60 +647,68 @@ class LSSTData:
         load_mjd : bool, optional
             Load MJD from CcdVisit catalog (default: True).
         """
+        from ulens_lsst.image_access import ImageProduct
+
         bands = bands or self.bands
-        bands_str = f"({', '.join(map(repr, bands))})"
-        print(f"Collecting calexps for bands {bands_str}...")
-
-        target_point = SpherePoint(Angle(self.ra, degrees), Angle(self.dec, degrees))
-        RA = target_point.getLongitude().asDegrees()
-        DEC = target_point.getLatitude().asDegrees()
-        circle = Region.from_ivoa_pos(f"CIRCLE {RA} {DEC} {self.radius}")
-        dataset_type = "visit_image" if "dp1" in self.butler_config else "calexp"
-
-        self.datasetRefs = list(
-            self.butler.query_datasets(
-                dataset_type,
-                where=f"visit_detector_region.region OVERLAPS my_region AND band IN {bands_str}",
-                bind={"ra": RA, "dec": DEC, "my_region": circle},
-                limit=None if n_max is None else n_max,
-            )
+        print(f"Collecting calexps for bands {tuple(bands)}...")
+        limit = None if n_max is None or n_max == "all" else n_max
+        products = self.image_access.find_exposures(
+            region=(self.ra, self.dec, self.radius), bands=bands, limit=limit
         )
-        print(f"Found {len(self.datasetRefs)} calexps.")
+        self.datasetRefs = products
+        print(f"Found {len(products)} calexps.")
+
+        if products and products[0].backend == "butler" and load_mjd:
+            ccd_visit = self.load_catalog("CcdVisit", delta_radius=0.4, save=False)
+        else:
+            ccd_visit = None
 
         calexps_data = []
-        if load_mjd:
-            ccd_visit = self.load_catalog("CcdVisit", delta_radius=0.4, save=False)
-            for ref in self.datasetRefs:
-                detector = ref.dataId["detector"]
-                visit = ref.dataId["visit"]
-                mask = (ccd_visit["detector"] == detector) & (ccd_visit["visitId"] == visit)
-                if mask.any():
-                    row = ccd_visit[mask].iloc[0]
-                    data = {
-                        "detector": detector,
-                        "visit": visit,
-                        "band": ref.dataId["band"],
-                        "expMidptMJD": row["expMidptMJD"],
-                        "psfSigma": row["psfSigma"],
-                    }
-                    if "dp1" in self.butler_config:
-                        data["magLim"] = row["magLim"]
-                    calexps_data.append(data)
-        else:
-            for ref in self.datasetRefs:
-                calexps_data.append(
-                    {
-                        "detector": ref.dataId["detector"],
-                        "visit": ref.dataId["visit"],
-                        "band": ref.dataId["band"],
-                    }
+        for product in products:
+            if not isinstance(product, ImageProduct):
+                raise TypeError("Image access must return ImageProduct descriptors")
+            if product.backend == "butler" and load_mjd:
+                mask = (
+                    (ccd_visit["detector"] == product.detector)
+                    & (ccd_visit["visitId"] == product.visit)
                 )
+                if not mask.any():
+                    continue
+                ccd = ccd_visit[mask].iloc[0]
+                product.expMidptMJD = ccd["expMidptMJD"]
+                for field, column in (("psfSigma", "psfSigma"), ("seeing", "seeing"), ("magLim", "magLim")):
+                    if column in ccd:
+                        setattr(product, field, ccd[column])
 
-        self.calexps_data = pd.DataFrame(calexps_data).sort_values("expMidptMJD")
-        self.epochs = {
-            band: sorted(set(self.calexps_data[self.calexps_data["band"] == band]["expMidptMJD"].values))
-            for band in self.bands
-        }
+            record = product.to_record()
+            # Keep the v1.0.2 columns consumed by the simulation and analysis code.
+            record.update({
+                "visit": product.visit,
+                "detector": product.detector,
+                "band": product.band,
+                "expMidptMJD": product.expMidptMJD,
+                "psfSigma": product.psfSigma,
+                "seeing": product.seeing,
+                "magLim": product.magLim,
+            })
+            calexps_data.append(record)
+
+        self.calexps_data = pd.DataFrame(calexps_data)
+        if "expMidptMJD" in self.calexps_data:
+            self.calexps_data = self.calexps_data.sort_values(
+                "expMidptMJD", na_position="last"
+            )
+        self.epochs = (
+            {
+                band: sorted(set(self.calexps_data.loc[
+                    (self.calexps_data["band"] == band)
+                    & self.calexps_data["expMidptMJD"].notna(), "expMidptMJD"
+                ].values))
+                for band in self.bands
+            }
+            if not self.calexps_data.empty and "expMidptMJD" in self.calexps_data
+            else {}
+        )
         self.epochs = {k: v for k, v in self.epochs.items() if v}
         if self.epochs:
             self.survey_dates = (
@@ -1334,7 +1401,7 @@ class Calexp:
         full_catalog = f"{self.tap_schema}.{catalog}"
 
         query = (
-            f"SELECT visitId, detector, expMidptMJD, seeing, band "
+            "SELECT * "
             f"FROM {full_catalog} "
             f"WHERE visitId = {visit} AND detector = {detector} "
             "ORDER BY expMidptMJD ASC"

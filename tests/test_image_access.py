@@ -24,6 +24,9 @@ from ulens_lsst.image_access import (
     make_image_access,
     make_tap_service,
     resolve_datalink_product,
+    image_product_from_record,
+    _footprint_overlaps_region,
+    validate_image_access_config,
 )
 
 
@@ -66,13 +69,23 @@ class TestImageProduct(unittest.TestCase):
         self.assertEqual(restored, descriptor)
         self.assertEqual(restored.to_dict()["data_id"], {"visit": 123, "detector": 4})
 
+    def test_old_calexp_catalog_row_becomes_butler_descriptor(self):
+        descriptor = image_product_from_record(
+            {"visit": 123.0, "detector": 4.0, "band": "r", "expMidptMJD": 61000.5},
+            data_preview="dp1",
+        )
+        self.assertEqual(descriptor.backend, "butler")
+        self.assertEqual(descriptor.dataset_type, "visit_image")
+        self.assertEqual(descriptor.data_id, {"visit": 123, "detector": 4})
+        self.assertEqual(descriptor.expMidptMJD, 61000.5)
+
 
 class TestTapOperations(unittest.TestCase):
     def test_make_tap_service_reports_missing_token_without_leaking_contents(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_path = Path(tmp) / "missing.token"
             with self.assertRaisesRegex(FileNotFoundError, "TAP token file is unavailable"):
-                make_tap_service(token_path)
+                make_tap_service(token_path, auth="token")
 
     def test_injected_session_is_used_for_service_and_datalink_security(self):
         session = Mock()
@@ -116,7 +129,7 @@ class TestTapOperations(unittest.TestCase):
         self.assertIn("FROM ivoa.ObsCore", query)
         self.assertIn("dataproduct_subtype = 'lsst.visit_image'", query)
         self.assertIn("obs_id = 'visit-123'", query)
-        self.assertIn("INTERSECTS(s_region", query)
+        self.assertIn("CONTAINS(POINT('ICRS', s_ra, s_dec)", query)
         self.assertIn("lsst_band IN ('r')", query)
         self.assertIn("TOP 5", query)
         self.assertIsInstance(rows[0], dict)
@@ -130,6 +143,21 @@ class TestTapOperations(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "region"):
             find_tap_images(service, region=(400, 0, 1))
         service.search.assert_not_called()
+
+    def test_find_tap_images_can_filter_explicit_visit_and_detector(self):
+        service = Mock()
+        service.search.return_value.to_table.return_value = Table(
+            names=("obs_collection",), dtype=("U12",)
+        )
+        find_tap_images(service, visit=123, detector=4)
+        query = service.search.call_args.args[0]
+        self.assertIn("lsst_visit = 123", query)
+        self.assertIn("lsst_detector = 4", query)
+
+    def test_obs_core_footprint_filter_keeps_overlap_and_rejects_disjoint_image(self):
+        footprint = "POLYGON ICRS 9.9 -19.9 10.1 -19.9 10.1 -20.1 9.9 -20.1"
+        self.assertTrue(_footprint_overlaps_region(footprint, (10.2, -20, 0.11)))
+        self.assertFalse(_footprint_overlaps_region(footprint, (10.4, -20, 0.05)))
 
     def test_resolve_datalink_selects_this_and_joins_relative_url(self):
         response = FakeResponse(
@@ -228,6 +256,23 @@ class TestTapOperations(unittest.TestCase):
             self.assertFalse(output.exists())
             self.assertEqual(list(Path(tmp).glob("*.part")), [])
 
+    def test_download_error_does_not_expose_signed_url(self):
+        response = FakeResponse()
+        response.raise_for_status = Mock(
+            side_effect=RuntimeError(
+                "403 https://signed.example/image.fits?token=temporary-secret"
+            )
+        )
+        session = Mock(get=Mock(return_value=response))
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "HTTP 403") as raised:
+                download_tap_image(
+                    session,
+                    "https://signed.example/image.fits?token=temporary-secret",
+                    Path(tmp) / "image.fits",
+                )
+        self.assertNotIn("temporary-secret", str(raised.exception))
+
     def test_load_fits_exposure_checks_file_and_uses_exposuref(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "image.fits"
@@ -242,12 +287,19 @@ class TestTapOperations(unittest.TestCase):
     def test_tap_backend_creates_descriptor_and_loads_from_stable_datalink(self):
         table = Table(
             rows=[("LSST.DP1", "visit-1", "publisher:1", "image", "lsst.visit_image",
-                   "https://example.org/datalink/1", 10.0, -20.0, 61000.0, 61000.02, "r")],
+                   "https://example.org/datalink/1", 10.0, -20.0, 61000.0, 61000.02,
+                   "r", 123, 4,
+                   "POLYGON ICRS 9.9 -19.9 10.1 -19.9 10.1 -20.1 9.9 -20.1")],
             names=("obs_collection", "obs_id", "obs_publisher_did", "dataproduct_type",
-                   "dataproduct_subtype", "access_url", "s_ra", "s_dec", "t_min", "t_max", "lsst_band"),
+                   "dataproduct_subtype", "access_url", "s_ra", "s_dec", "t_min", "t_max",
+                   "lsst_band", "lsst_visit", "lsst_detector", "s_region"),
+        )
+        ccd_visit = Table(
+            rows=[(123, 4, 61001.0, 2.0, 0.8, 24.0, "r")],
+            names=("visitId", "detector", "expMidptMJD", "psfSigma", "seeing", "magLim", "band"),
         )
         service = Mock()
-        service.search.return_value.to_table.return_value = table
+        service.search.side_effect = [Mock(to_table=Mock(return_value=table)), Mock(to_table=Mock(return_value=ccd_visit))]
         session = Mock()
         access = TapImageAccess(service=service, session=session, cache_dir="/tmp/image-cache")
 
@@ -258,7 +310,10 @@ class TestTapOperations(unittest.TestCase):
         self.assertEqual(restored.stable_id, "publisher:1")
         self.assertEqual(restored.datalink_url, "https://example.org/datalink/1")
         self.assertEqual(restored.obs_id, "visit-1")
-        self.assertAlmostEqual(restored.exp_midpoint_mjd, 61000.01)
+        self.assertEqual(restored.expMidptMJD, 61001.0)
+        self.assertAlmostEqual(restored.obscore_midpoint_mjd, 61000.01)
+        self.assertEqual(restored.psfSigma, 2.0)
+        self.assertEqual(restored.seeing, 0.8)
 
     def test_cached_exposure_load_does_not_need_a_live_session(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -319,7 +374,7 @@ class TestButlerAccess(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only for DP1"):
             make_image_access({"backend": "tap"}, data_preview="dp0")
         access = make_image_access(
-            {"backend": "tap"},
+            {"backend": "tap", "collection": "LSST.DP1", "product_subtype": "lsst.visit_image"},
             data_preview="dp1",
             service=Mock(),
             session=Mock(),
@@ -327,6 +382,24 @@ class TestButlerAccess(unittest.TestCase):
         self.assertIsInstance(access, TapImageAccess)
         self.assertEqual(access.collection, "LSST.DP1")
         self.assertEqual(access.product_subtype, "lsst.visit_image")
+
+    def test_tap_configuration_requires_collection_subtype_and_known_auth(self):
+        for config, message in (
+            ({"backend": "tap"}, "collection is required"),
+            ({"backend": "tap", "collection": "LSST.DP1"}, "product_subtype is required"),
+            ({"backend": "tap", "collection": "LSST.DP1", "product_subtype": "lsst.visit_image", "auth": "magic"}, "auth must be"),
+        ):
+            with self.subTest(config=config), self.assertRaisesRegex(ValueError, message):
+                validate_image_access_config(config, data_preview="dp1")
+
+    def test_rsp_auth_uses_integrated_service_and_external_auth_uses_token(self):
+        service = Mock()
+        service._session = Mock()
+        with patch("lsst.rsp.get_tap_service", return_value=service) as get_service:
+            built_service, session = make_tap_service(auth="rsp")
+        get_service.assert_called_once_with("tap")
+        self.assertIs(built_service, service)
+        self.assertIs(session, service._session)
 
     def test_find_butler_images_and_load_mapping(self):
         exposure = __import__("lsst.afw.image", fromlist=["ExposureF"]).ExposureF(3, 4)

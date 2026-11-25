@@ -46,6 +46,11 @@ lsst_images:
   # Data preview: "dp0", "dp1"
   max_load_calexps: null
   # Maximum number of calexps to load (null for all)
+image_access:
+  backend: "butler"
+  # Image backend: "butler" (default, v1.0.2-compatible) or "tap" (DP1 only)
+  # For TAP, set collection: "LSST.DP1", product_subtype: "lsst.visit_image"
+  # and optionally auth: "rsp" or auth: "token" with token_path.
 opsim:
   version: "baseline"
   # OpSim version for cadence simulation
