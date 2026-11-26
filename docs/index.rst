@@ -7,6 +7,10 @@ The `ulens_lsst` package simulates microlensing events for the LSST, supporting
 DP0 simulations, DP1 real data, and rubin_sim light curves. It is designed for
 flexible experimentation, publication, and installation via pip.
 
+For the current Butler/TAP interfaces, pipeline map, and data provenance, see
+the :doc:`usage` page or download the
+:download:`interface reference <interface_reference.md>`.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

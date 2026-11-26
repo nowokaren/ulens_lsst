@@ -438,18 +438,12 @@ require constructing the configured paths explicitly.
 
 ### Small, safe improvements before v1.0.3
 
-- Add `image_access`, `LSSTData`, and `Calexp` to the generated API reference;
-  fix the existing Sphinx reference to the actual `processing_event_pipelines`
-  module.
-- The new Markdown reference is not currently included in the Sphinx toctree;
-  link it from the built documentation or render an RST version before relying
-  on the Read the Docs site as its entry point.
-- Clarify in public docstrings that `calexp_catalog()` populates
-  `self.calexps_data` and writes the records consumed by photometry workers.
-- Document the supported DP1 TAP product and the `cache_dir`/`output_path`
-  requirement at the factory or pipeline entry point.
-- Make the CLI script name consistent in docs (`ulens_lsst`, as declared in
-  `pyproject.toml`).
+- The Markdown reference is linked from the Sphinx index and usage page as a
+  downloadable source file and from the README. It is not rendered inline by
+  Sphinx, which currently has no Markdown parser configured.
+- The API page exposes `image_access`, `LSSTData`, and `Calexp`; its worker
+  module reference uses the implemented `processing_event_pipelines` name.
+- The command examples use the installed `ulens_lsst` CLI name.
 
 ### Improvements that can wait
 

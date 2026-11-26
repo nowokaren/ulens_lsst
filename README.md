@@ -105,6 +105,8 @@ ulens_lsst --help
 ## Documentation
 Full docs: ```https://ulens-lsst.readthedocs.io/```
 (If not building yet, focus on README + notebooks in docs/tutorials/)
+For the current module map, Butler/TAP interfaces, minimal examples, and data
+provenance, see the [interface reference](docs/interface_reference.md).
 The DP0.2 end-to-end example is available in
 [`docs/tutorials/tutorial_ulens_lsst_pipeline.ipynb`](docs/tutorials/tutorial_ulens_lsst_pipeline.ipynb).
 

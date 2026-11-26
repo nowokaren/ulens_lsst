@@ -3,7 +3,7 @@ Sphinx configuration for ulens_lsst documentation.
 """
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'ulens_lsst', 'ulens_lsst')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.insert(0, '/opt/lsst/software/stack/conda/envs/lsst-scipipe-10.0.0/lib/python3.12/site-packages')
 # autodoc_mock_imports = ['lsst.afw', 'lsst.afw.detection', 'lsst.afw.detection.ImagePsf', 'lsst.afw.detection.Psf', 'lsst.daf.butler', 'lsst.daf', 'lsst.geom', 'lsst.utils']
 autodoc_mock_imports = [

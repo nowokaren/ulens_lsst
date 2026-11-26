@@ -530,7 +530,14 @@ def load_butler_exposure(
 
 
 class TapImageAccess:
-    """Stateful TAP/DataLink access; construct one locally in each worker."""
+    """Stateful TAP/DataLink access; construct one locally in each worker.
+
+    The pipeline route validated to date uses collection ``LSST.DP1`` and
+    product subtype ``lsst.visit_image``. Set ``cache_dir`` to use a managed
+    local FITS cache; otherwise pass ``output_path`` to ``load_exposure``.
+    ObsCore's original DataLink URL is kept as provenance. The resolved signed
+    ``#this`` URL is temporary and is never stored as the product's stable ID.
+    """
 
     def __init__(
         self,
@@ -572,6 +579,13 @@ class TapImageAccess:
         detector: Optional[int] = None,
         limit: Optional[int] = 100,
     ) -> list[ImageProduct]:
+        """Find DP1 image products and return serializable descriptors.
+
+        Results preserve the original DataLink URL and stable product ID; the
+        signed URL for the FITS product is resolved later by ``load_exposure``.
+        The currently validated pipeline configuration is ``LSST.DP1`` with
+        subtype ``lsst.visit_image``.
+        """
         _validate_limit(limit)
         query_region = region
         if region is not None:
@@ -685,6 +699,14 @@ class TapImageAccess:
         output_path: Optional[str | Path] = None,
         overwrite: bool = False,
     ) -> Any:
+        """Resolve and load a TAP product as an ``ExposureF``.
+
+        With ``cache_dir`` set on this access object, the destination is a FITS
+        file named from the product's stable ID. Otherwise ``output_path`` is
+        required. An existing readable FITS is reused unless ``overwrite`` is
+        true. DataLink's potentially signed final ``#this`` URL is resolved
+        here, used for download, and not retained in the descriptor.
+        """
         product = ImageProduct.from_dict(product) if not isinstance(product, ImageProduct) else product
         if product.backend != "tap":
             raise ValueError(f"TapImageAccess cannot load backend={product.backend!r}")
@@ -829,7 +851,14 @@ def make_image_access(
     session: Any = None,
     cache_dir: Optional[str | Path] = None,
 ) -> ButlerImageAccess | TapImageAccess:
-    """Construct the configured image backend; Butler remains the legacy default."""
+    """Construct the configured image backend; Butler remains the default.
+
+    TAP is currently validated for DP1 image access using collection
+    ``LSST.DP1`` and subtype ``lsst.visit_image``. ``cache_dir`` is forwarded to
+    ``TapImageAccess`` to choose a managed FITS cache. If it is omitted, callers
+    must provide ``output_path`` when loading a TAP product. The signed DataLink
+    product URL is resolved only during loading and is not a stable identifier.
+    """
     config = dict(config or {})
     validate_image_access_config(config, data_preview=data_preview)
     backend = config.get("backend", "butler")

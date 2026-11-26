@@ -10,13 +10,13 @@ Run the pipeline via the command-line:
 
 .. code-block:: bash
 
-   ulens-lsst --config config.yaml --steps all
+   ulens_lsst --config config.yaml --steps all
 
 Available steps: `all`, `simulate`, `load_nearby`, `process_photometry`, `chi2`. Example for specific steps:
 
 .. code-block:: bash
 
-   ulens-lsst --config config.yaml --steps simulate,process_photometry
+   ulens_lsst --config config.yaml --steps simulate,process_photometry
 
 Outputs are saved in a directory named after `name` under `main_path` (e.g., `/runs/my_simulation/`) as specified in `config.yaml`. See :ref:`data` for details.
 
@@ -38,6 +38,15 @@ Simulation outputs (temporary files and results) are saved in a directory named 
 See the :ref:`api` section for detailed class and method documentation.
 
 (Soon) See the :ref:`tutorials` section for interactive examples and the :ref:`api` section for detailed class and method documentation.
+
+Interface and image-access reference
+------------------------------------
+
+The current module map, Butler/TAP workflow, data provenance, and minimal
+examples are in the
+:download:`interface reference <interface_reference.md>`. The API page
+documents the importable classes and functions; the reference explains how they
+fit together in a run.
 
 Process count and independent Slurm runs
 ----------------------------------------
@@ -119,7 +128,7 @@ If those libraries use threads, control them separately through their documented
 environment variables and record those settings with the run.
 
 Image access backends
---------------------
+---------------------
 
 Image retrieval is selected independently from ``data_preview``. Existing
 configurations without an ``image_access`` block continue to use Butler. TAP

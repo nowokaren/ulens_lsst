@@ -641,7 +641,10 @@ class LSSTData:
         """
         Load catalog of calibrated exposures overlapping the specified region.
 
-        Stores results in `self.calexps_data` and computes survey epochs.
+        Stores `ImageProduct` descriptors in `self.calexps_data` and computes
+        survey epochs. The simulation pipeline serializes these records to
+        `data_calexps.csv`, which supplies the descriptors consumed by the
+        synthetic-photometry workers.
 
         Parameters
         ----------

@@ -8,7 +8,7 @@ and initial event ID for flexible microlensing experiments.
 
 Usage
 -----
-ulens-lsst [--config CONFIG_FILE] [--steps STEPS] [--sim_name SIM_NAME] [--ra RA] [--dec DEC]
+ulens_lsst [--config CONFIG_FILE] [--steps STEPS] [--sim_name SIM_NAME] [--ra RA] [--dec DEC]
            [--init_event_id INIT_EVENT_ID] [--model MODEL] [--system_type SYSTEM_TYPE]
 
 Arguments
@@ -35,9 +35,9 @@ Arguments
 Examples
 --------
 Run full pipeline:
-    ulens-lsst --config config.yaml --sim_name dataset_dp0_0 --ra 180.0 --dec 0.0 --init_event_id 0 --model USBL --system_type Planets_systems
+    ulens_lsst --config config.yaml --sim_name dataset_dp0_0 --ra 180.0 --dec 0.0 --init_event_id 0 --model USBL --system_type Planets_systems
 Run specific steps:
-    ulens-lsst --steps simulate,process_photometry --sim_name dataset_dp0_1 --ra 185.0 --dec 5.0
+    ulens_lsst --steps simulate,process_photometry --sim_name dataset_dp0_1 --ra 185.0 --dec 5.0
 """
 import argparse
 import logging
