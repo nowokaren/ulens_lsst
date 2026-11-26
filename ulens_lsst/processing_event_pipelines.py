@@ -42,8 +42,12 @@ from ulens_lsst.image_access import image_product_from_record, make_image_access
 try:
     from ulens_lsst.lsst_data import LSSTData, Calexp
     from ulens_lsst.lsst_tools import LSSTTools
-except:
-    pass
+except ImportError as exc:
+    raise ImportError(
+        "ulens_lsst image processing requires the LSST Science Pipelines. "
+        "Activate the Rubin environment with `source "
+        "/opt/lsst/software/stack/loadLSST.bash` and `setup lsst_distrib`."
+    ) from exc
 from ulens_lsst.utils import get_nearby_objects, get_lsst_noisy_lc
 
 
